@@ -772,3 +772,8 @@ def bad_request(error):
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Resource not found"}), 404
+
+# --- Main Entry Point ---
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True)
