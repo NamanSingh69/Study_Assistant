@@ -1,0 +1,624 @@
+<!DOCTYPE html> 
+<html> 
+<head> 
+    <title>Study Assistant</title> 
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"> 
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> 
+    <style> 
+        body { background-color: #121212; color: #e0e0e0; } 
+        .quiz-question { transition: all 0.3s ease-in-out; } 
+        .feedback-container { transition: all 0.3s ease-in-out; } 
+        .option-container:hover { cursor: pointer; background-color: #2d3748; } 
+        .flashcard-container { perspective: 1000px; } 
+        .flashcard { transition: transform 0.6s; transform-style: preserve-3d; } 
+        .flashcard.flipped { transform: rotateY(180deg); } 
+        .flashcard-front, .flashcard-back { backface-visibility: hidden; position: absolute; width: 100%; height: 100%; } 
+        .flashcard-back { transform: rotateY(180deg); } 
+        .prose { color: #e0e0e0; width: 100%; overflow-x: auto; } 
+        .prose strong { color: #f0f0f0; } 
+        .prose h1, .prose h2, .prose h3, .prose h4 { color: #f0f0f0; margin-top: 1.5em; margin-bottom: 0.5em; } 
+        .drag-active { border-color: #4299e1 !important; background-color: rgba(66, 153, 225, 0.1) !important; } 
+        .prose * { max-width: 100%; word-wrap: break-word; } 
+        .prose p { margin-bottom: 1em; line-height: 1.6; } 
+        .prose ul, .prose ol { padding-left: 1.5em; margin-bottom: 1em; } 
+        .prose li { margin-bottom: 0.5em; } 
+        .prose code { background-color: #2d3748; padding: 0.2em 0.4em; border-radius: 4px; font-family: monospace; } 
+        .prose pre { background-color: #1a202c; padding: 1em; border-radius: 8px; overflow-x: auto; margin-bottom: 1em; } 
+        .prose pre code { background-color: transparent; padding: 0; } 
+        .prose blockquote { border-left: 4px solid #4a5568; padding-left: 1em; color: #a0aec0; margin: 1em 0; } 
+        .prose table { width: 100%; border-collapse: collapse; margin: 1em 0; } 
+        .prose th, .prose td { border: 1px solid #4a5568; padding: 0.5em; text-align: left; } 
+        .prose th { background-color: #2d3748; } 
+        .prose a { color: #63b3ed; text-decoration: underline; } 
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8 text-gray-100">Study Assistant</h1>
+
+        <!-- Progress Bar -->
+        <div id="progress-bar" class="hidden fixed top-0 left-0 w-full h-1 bg-blue-500"></div>
+
+        <!-- Content Upload Section -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-100">Upload Content</h2>
+            <div class="mb-6">
+                <h3 class="text-lg font-medium mb-3 text-gray-200">Content URLs (one per line)</h3>
+                <textarea id="urls-input" placeholder="YouTube or website URLs" rows="3" class="w-full px-4 py-2 border rounded-lg bg-gray-700 text-gray-100 border-gray-600 focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="mb-6">
+                <h3 class="text-lg font-medium mb-3 text-gray-200">Files (PDF, audio, video)</h3>
+                <div id="drag-drop-area" class="w-full h-32 border-2 border-dashed border-gray-600 rounded-lg bg-gray-700 flex flex-col items-center justify-center text-gray-400 mb-4 transition-colors duration-200">
+                    <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-center">Drag & drop files here or</p>
+                    <label for="files-input" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors">
+                        <span id="file-input-label">Browse Files</span>
+                        <input type="file" id="files-input" multiple accept=".pdf,.mp3,.wav,.mp4,.avi,.mov" class="hidden">
+                    </label>
+                </div>
+                <div id="selected-files" class="mt-2 space-y-2"></div>
+            </div>
+            <div class="mb-6 flex items-center">
+                <label for="web-search-toggle" class="mr-3 text-gray-200">Enable Web Search</label>
+                <input type="checkbox" id="web-search-toggle" checked class="form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600">
+            </div>
+            <button id="process-content" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">Process Content</button>
+        </div>
+
+        <!-- Content Display Section -->
+        <div id="content-container" class="hidden">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-8">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-100">Content Information</h2>
+                <div id="content-info" class="mb-6 text-gray-300"></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <button id="show-notes" class="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg transition-colors">View Notes</button>
+                    <button id="generate-quiz" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition-colors">Generate Quiz</button>
+                    <button id="generate-flashcards" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-3 rounded-lg transition-colors">Generate Flashcards</button>
+                </div>
+                <div class="border-t border-gray-700 pt-6">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-100">Chat with Content</h3>
+                    <div id="chat-history" class="mb-4 h-80 overflow-y-auto border p-4 rounded-lg bg-gray-700 border-gray-600"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="chat-input" placeholder="Ask a question..." class="flex-1 px-4 py-2 border rounded-lg bg-gray-700 text-gray-100 border-gray-600 focus:ring-2 focus:ring-blue-500">
+                        <button id="send-message" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-colors">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes Section -->
+        <div id="notes-container" class="hidden bg-gray-800 p-6 rounded-lg shadow-md mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-100">Study Notes</h2>
+                <button id="close-notes" class="text-gray-400 hover:text-gray-200 text-2xl font-bold">×</button>
+            </div>
+            <div id="notes-content" class="prose max-w-none"></div>
+        </div>
+
+        <!-- Quiz Section -->
+        <div id="quiz-container" class="hidden bg-gray-800 p-6 rounded-lg shadow-md mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-100">Knowledge Quiz</h2>
+                <button id="close-quiz" class="text-gray-400 hover:text-gray-200 text-2xl font-bold">×</button>
+            </div>
+            <div id="quiz-content" class="space-y-6"></div>
+            <div class="mt-6 flex justify-between items-center">
+                <button id="submit-quiz" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors">Submit Answers</button>
+                <button id="generate-more-questions" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors">Generate More Questions</button>
+            </div>
+        </div>
+
+        <!-- Flashcards Section -->
+        <div id="flashcards-container" class="hidden bg-gray-800 p-6 rounded-lg shadow-md mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-100">Flashcards</h2>
+                <button id="close-flashcards" class="text-gray-400 hover:text-gray-200 text-2xl font-bold">×</button>
+            </div>
+            <div class="flashcard-container h-80 relative">
+                <div id="flashcard" class="flashcard w-full h-full">
+                    <div id="flashcard-front" class="flashcard-front w-full h-full flex items-center justify-center p-6 bg-gray-700 border border-gray-600 rounded-lg">
+                        <p class="text-xl text-center"></p>
+                    </div>
+                    <div id="flashcard-back" class="flashcard-back w-full h-full flex items-center justify-center p-6 bg-gray-700 border border-gray-600 rounded-lg">
+                        <p class="text-xl text-center"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-center gap-4 mt-6">
+                <button id="prev-card" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg transition-colors">Previous</button>
+                <button id="flip-card" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded-lg transition-colors">Flip</button>
+                <button id="next-card" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg transition-colors">Next</button>
+            </div>
+            <div class="mt-4 text-center">
+                <button id="generate-more-flashcards" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors">Generate More Flashcards</button>
+            </div>
+            <div id="card-counter" class="text-center mt-4 text-gray-400"></div>
+        </div>
+
+        <script>
+            let currentContentId = null;
+            let currentQuizId = null;
+            let currentQuizQuestions = [];
+            let currentFlashcards = [];
+            let currentFlashcardIndex = 0;
+
+            const urlsInput = document.getElementById('urls-input');
+            const filesInput = document.getElementById('files-input');
+            const fileInputLabel = document.getElementById('file-input-label');
+            const selectedFilesDiv = document.getElementById('selected-files');
+            const processContentBtn = document.getElementById('process-content');
+            const contentContainer = document.getElementById('content-container');
+            const contentInfo = document.getElementById('content-info');
+            const notesContainer = document.getElementById('notes-container');
+            const notesContent = document.getElementById('notes-content');
+            const quizContainer = document.getElementById('quiz-container');
+            const quizContent = document.getElementById('quiz-content');
+            const flashcardsContainer = document.getElementById('flashcards-container');
+            const flashcard = document.getElementById('flashcard');
+            const flashcardFront = document.getElementById('flashcard-front').querySelector('p');
+            const flashcardBack = document.getElementById('flashcard-back').querySelector('p');
+            const cardCounter = document.getElementById('card-counter');
+            const dragDropArea = document.getElementById('drag-drop-area');
+
+            // File management
+            let selectedFiles = new Map();
+
+            // Drag and Drop functionality
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dragDropArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dragDropArea.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dragDropArea.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight() {
+                dragDropArea.classList.add('drag-active');
+            }
+
+            function unhighlight() {
+                dragDropArea.classList.remove('drag-active');
+            }
+
+            dragDropArea.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                
+                if (!files.length) return;
+                
+                handleFiles(files);
+            }
+
+            function handleFiles(files) {
+                Array.from(files).forEach(file => {
+                    // Check if file is of accepted type
+                    const acceptedTypes = ['.pdf', '.mp3', '.wav', '.mp4', '.avi', '.mov'];
+                    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                    
+                    if (acceptedTypes.includes(fileExtension)) {
+                        const fileId = `${file.name}-${file.size}-${file.lastModified}`;
+                        selectedFiles.set(fileId, file);
+                    } else {
+                        alert(`File type ${fileExtension} is not supported. Please upload PDF, audio, or video files.`);
+                    }
+                });
+                
+                updateFileListDisplay();
+                updateProcessButtonState();
+                updateFileInputLabel();
+            }
+
+            // Event Listeners
+            processContentBtn.addEventListener('click', processContent);
+            document.getElementById('show-notes').addEventListener('click', showNotes);
+            document.getElementById('generate-quiz').addEventListener('click', generateQuiz);
+            document.getElementById('generate-flashcards').addEventListener('click', generateFlashcards);
+            document.getElementById('send-message').addEventListener('click', sendChatMessage);
+            document.getElementById('submit-quiz').addEventListener('click', submitQuiz);
+            document.getElementById('generate-more-questions').addEventListener('click', generateQuiz);
+            document.getElementById('prev-card').addEventListener('click', showPreviousFlashcard);
+            document.getElementById('next-card').addEventListener('click', showNextFlashcard);
+            document.getElementById('flip-card').addEventListener('click', flipFlashcard);
+            document.getElementById('close-notes').addEventListener('click', () => notesContainer.classList.add('hidden'));
+            document.getElementById('close-quiz').addEventListener('click', () => quizContainer.classList.add('hidden'));
+            document.getElementById('close-flashcards').addEventListener('click', () => flashcardsContainer.classList.add('hidden'));
+            document.getElementById('generate-more-flashcards').addEventListener('click', generateMoreFlashcards);
+
+            // File input change handler
+            filesInput.addEventListener('change', function() {
+                if (!this.files.length) return;
+                
+                handleFiles(this.files);
+                
+                // Reset the file input to allow selecting the same files again
+                this.value = '';
+            });
+
+            // Update file input label
+            function updateFileInputLabel() {
+                if (selectedFiles.size === 0) {
+                    fileInputLabel.textContent = 'Browse Files';
+                } else {
+                    fileInputLabel.textContent = `${selectedFiles.size} file(s) selected`;
+                }
+            }
+
+            // Update file list display
+            function updateFileListDisplay() {
+                selectedFilesDiv.innerHTML = '';
+                
+                if (selectedFiles.size === 0) {
+                    return;
+                }
+                
+                selectedFiles.forEach((file, fileId) => {
+                    const fileElement = document.createElement('div');
+                    fileElement.className = 'flex items-center justify-between p-2 bg-gray-700 rounded-lg';
+                    fileElement.innerHTML = `
+                        <span class="text-gray-300 truncate flex-grow">${file.name}</span>
+                        <button class="text-red-400 hover:text-red-300 ml-2 px-2" data-file-id="${fileId}">×</button>
+                    `;
+                    fileElement.querySelector('button').addEventListener('click', function() {
+                        selectedFiles.delete(fileId);
+                        updateFileListDisplay();
+                        updateProcessButtonState();
+                        updateFileInputLabel();
+                    });
+                    selectedFilesDiv.appendChild(fileElement);
+                });
+            }
+
+            function updateProcessButtonState() {
+                const urls = urlsInput.value.trim();
+                const files = selectedFiles.size;
+                processContentBtn.disabled = !(urls || files);
+                
+                if (processContentBtn.disabled) {
+                    processContentBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    processContentBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+            
+            urlsInput.addEventListener('input', updateProcessButtonState);
+            updateProcessButtonState();  // Initial state
+
+            function showProgressBar() {
+                document.getElementById('progress-bar').classList.remove('hidden');
+            }
+            function hideProgressBar() {
+                document.getElementById('progress-bar').classList.add('hidden');
+            }
+
+            async function processContent(e) {
+                e.preventDefault();
+                const urls = urlsInput.value.trim().split('\n').filter(url => url.trim() !== '');
+                const files = Array.from(selectedFiles.values());
+                
+                if (urls.length === 0 && files.length === 0) {
+                    alert('Please provide at least one URL or file');
+                    return;
+                }
+                
+                const webSearchEnabled = document.getElementById('web-search-toggle').checked;
+                const formData = new FormData();
+                formData.append('urls', JSON.stringify(urls));
+                formData.append('web_search', webSearchEnabled);
+                
+                files.forEach(file => {
+                    formData.append('files', file);
+                });
+                
+                showProgressBar();
+                try {
+                    const response = await fetch('/api/process-content', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    currentContentId = data.content_id;
+                    displayContentInfo(data);
+                } catch (error) {
+                    alert(`Error processing content: ${error.message}`);
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            function displayContentInfo(data) {
+                contentInfo.innerHTML = `
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="font-semibold">Title:</span>
+                            <span class="ml-2">${data.title}</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold">Content ID:</span>
+                            <span class="ml-2">${data.content_id}</span>
+                        </div>
+                    </div>
+                    <button id="show-original" class="mt-4 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg">Show Original Content</button>
+                    <div id="original-container" class="hidden mt-4 p-4 bg-gray-700 rounded-lg">
+                        <h3 class="text-lg font-medium mb-2">Original Content</h3>
+                        <p id="original-text" class="text-gray-300"></p>
+                    </div>
+                `;
+                contentContainer.classList.remove('hidden');
+                resetContainers();
+                document.getElementById('show-original').addEventListener('click', () => {
+                    const originalContainer = document.getElementById('original-container');
+                    if (originalContainer.classList.contains('hidden')) {
+                        if (!originalContainer.dataset.loaded) {
+                            fetch(`/api/content/${currentContentId}`)
+                                .then(response => response.json())
+                                .then(data => {
+                                    document.getElementById('original-text').textContent = data.original_text || "Not available";
+                                    originalContainer.dataset.loaded = true;
+                                });
+                        }
+                        originalContainer.classList.remove('hidden');
+                        document.getElementById('show-original').textContent = 'Hide Original Content';
+                    } else {
+                        originalContainer.classList.add('hidden');
+                        document.getElementById('show-original').textContent = 'Show Original Content';
+                    }
+                });
+            }
+
+            function resetContainers() {
+                notesContainer.classList.add('hidden');
+                quizContainer.classList.add('hidden');
+                flashcardsContainer.classList.add('hidden');
+                document.getElementById('chat-history').innerHTML = '';
+            }
+
+            async function showNotes() {
+                if (!currentContentId) return;
+                showProgressBar();
+                try {
+                    const response = await fetch(`/api/content/${currentContentId}`);
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    notesContent.innerHTML = marked.parse(data.notes);
+                    notesContainer.classList.remove('hidden');
+                } catch (error) {
+                    alert(`Error fetching notes: ${error.message}`);
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            async function generateQuiz() {
+                if (!currentContentId) return;
+                showProgressBar();
+                try {
+                    const response = await fetch(`/api/generate-quizzes/${currentContentId}`);
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    currentQuizId = data.quiz_id;
+                    currentQuizQuestions = data.questions;
+                    displayQuiz(data);
+                } catch (error) {
+                    alert(`Error generating quiz: ${error.message}`);
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            function displayQuiz(data) {
+                quizContent.innerHTML = '';
+                data.questions.forEach((q, index) => {
+                    const questionHtml = `
+                        <div class="quiz-question bg-gray-700 p-6 rounded-lg" data-index="${index}">
+                            <p class="text-lg font-medium mb-4">${index + 1}. ${q.question}</p>
+                            <div class="space-y-3">
+                                ${q.options.map((option, optIndex) => `
+                                    <div class="option-container p-3 rounded-lg border border-gray-600 hover:bg-gray-600">
+                                        <input type="radio" id="q${index}_opt${optIndex}" name="q${index}" value="${option}" class="mr-2">
+                                        <label for="q${index}_opt${optIndex}">${option}</label>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="feedback-container mt-4 hidden"></div>
+                        </div>
+                    `;
+                    quizContent.innerHTML += questionHtml;
+                });
+                quizContainer.classList.remove('hidden');
+                document.getElementById('submit-quiz').disabled = false;
+                document.getElementById('submit-quiz').classList.remove('bg-gray-500');
+                document.getElementById('submit-quiz').classList.add('bg-blue-600');
+            }
+
+            async function submitQuiz() {
+                if (!currentContentId || !currentQuizId || !currentQuizQuestions.length) return;
+                let correctAnswers = 0;
+                const totalQuestions = currentQuizQuestions.length;
+                currentQuizQuestions.forEach((q, index) => {
+                    const questionDiv = document.querySelector(`.quiz-question[data-index="${index}"]`);
+                    const feedbackDiv = questionDiv.querySelector('.feedback-container');
+                    const selectedOption = document.querySelector(`input[name="q${index}"]:checked`);
+                    if (!selectedOption) {
+                        feedbackDiv.innerHTML = `<p class="text-yellow-500">Please answer this question.</p>`;
+                        feedbackDiv.classList.remove('hidden');
+                        return;
+                    }
+                    const userAnswer = selectedOption.value.trim().toLowerCase();
+                    const correctAnswer = q.correct_answer.trim().toLowerCase();
+                    const isCorrect = userAnswer === correctAnswer;
+                    if (isCorrect) correctAnswers++;
+                    feedbackDiv.innerHTML = `
+                        <div class="${isCorrect ? 'text-green-500' : 'text-red-500'} mb-2">
+                            <p class="font-semibold">${isCorrect ? '✓ Correct!' : '✗ Incorrect'}</p>
+                            ${!isCorrect ? `<p>The correct answer is: ${q.correct_answer}</p>` : ''}
+                        </div>
+                        <div class="mt-2">
+                            <p class="text-gray-300"><strong>Explanation:</strong> ${q.explanation}</p>
+                            <p class="text-gray-400 mt-2"><strong>Misconceptions:</strong> ${q.misconceptions}</p>
+                            <p class="text-gray-400 mt-2"><strong>Related concepts:</strong> ${q.related_concepts}</p>
+                        </div>
+                    `;
+                    feedbackDiv.classList.remove('hidden');
+                    questionDiv.querySelectorAll('input[type="radio"]').forEach(input => input.disabled = true);
+                });
+                showProgressBar();
+                try {
+                    const response = await fetch('/api/record-performance', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            content_id: currentContentId,
+                            quiz_id: currentQuizId,
+                            bloom_level: currentQuizQuestions[0]?.bloom_level || 'Understand',
+                            correct_answers: correctAnswers,
+                            total_questions: totalQuestions
+                        })
+                    });
+                    if (!response.ok) throw new Error('Failed to record performance');
+                    quizContent.insertAdjacentHTML('afterbegin', `
+                        <div class="mb-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
+                            <p class="text-xl font-semibold">Quiz Results</p>
+                            <p class="text-lg">Score: ${correctAnswers}/${totalQuestions} (${Math.round((correctAnswers/totalQuestions)*100)}%)</p>
+                        </div>
+                    `);
+                    document.getElementById('submit-quiz').disabled = true;
+                    document.getElementById('submit-quiz').classList.add('bg-gray-500');
+                    document.getElementById('submit-quiz').classList.remove('bg-blue-600');
+                } catch (error) {
+                    alert(`Error recording performance: ${error.message}`);
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            async function generateFlashcards() {
+                if (!currentContentId) return;
+                showProgressBar();
+                try {
+                    const response = await fetch(`/api/generate-flashcards/${currentContentId}`);
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    currentFlashcards = data.flashcards;
+                    currentFlashcardIndex = 0;
+                    if (currentFlashcards.length > 0) {
+                        showFlashcard(0);
+                        flashcardsContainer.classList.remove('hidden');
+                    }
+                } catch (error) {
+                    alert(`Error generating flashcards: ${error.message}`);
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            async function generateMoreFlashcards() {
+                if (!currentContentId) return;
+                showProgressBar();
+                try {
+                    const response = await fetch(`/api/generate-flashcards/${currentContentId}`);
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    const newFlashcards = data.flashcards;
+                    currentFlashcards = currentFlashcards.concat(newFlashcards);
+                    showFlashcard(currentFlashcardIndex);
+                    flashcardsContainer.classList.remove('hidden');
+                } catch (error) {
+                    alert(`Error generating more flashcards: ${error.message}`);
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            function showFlashcard(index) {
+                if (index < 0 || index >= currentFlashcards.length) return;
+                const card = currentFlashcards[index];
+                flashcardFront.textContent = card.question;
+                flashcardBack.textContent = card.answer;
+                flashcard.classList.remove('flipped');
+                cardCounter.textContent = `Card ${index + 1} of ${currentFlashcards.length}`;
+                updateFlashcardNavigation();
+            }
+
+            function updateFlashcardNavigation() {
+                document.getElementById('prev-card').disabled = currentFlashcardIndex === 0;
+                document.getElementById('next-card').disabled = currentFlashcardIndex === currentFlashcards.length - 1;
+            }
+
+            function showPreviousFlashcard() {
+                if (currentFlashcardIndex > 0) {
+                    currentFlashcardIndex--;
+                    showFlashcard(currentFlashcardIndex);
+                }
+            }
+
+            function showNextFlashcard() {
+                if (currentFlashcardIndex < currentFlashcards.length - 1) {
+                    currentFlashcardIndex++;
+                    showFlashcard(currentFlashcardIndex);
+                }
+            }
+
+            function flipFlashcard() {
+                flashcard.classList.toggle('flipped');
+            }
+
+            async function sendChatMessage() {
+                if (!currentContentId) return;
+                const chatInput = document.getElementById('chat-input');
+                const message = chatInput.value.trim();
+                if (!message) return;
+                const chatHistory = document.getElementById('chat-history');
+                chatHistory.innerHTML += `
+                    <div class="mb-4">
+                        <p class="font-semibold text-blue-400">You:</p>
+                        <p class="ml-4">${message}</p>
+                    </div>
+                `;
+                chatInput.value = '';
+                showProgressBar();
+                try {
+                    const response = await fetch(`/api/chat/${currentContentId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message })
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    chatHistory.innerHTML += `
+                        <div class="mb-4">
+                            <p class="font-semibold text-green-400">Assistant:</p>
+                            <div class="ml-4">${marked.parse(data.response)}</div>
+                        </div>
+                    `;
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                } catch (error) {
+                    chatHistory.innerHTML += `<div class="mb-4 text-red-400">Error: ${error.message}</div>`;
+                } finally {
+                    hideProgressBar();
+                }
+            }
+
+            document.getElementById('chat-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendChatMessage();
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>

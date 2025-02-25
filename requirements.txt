@@ -1,0 +1,5 @@
+Flask
+youtube-transcript-api
+google-generativeai
+requests
+beautifulsoup4
