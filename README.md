@@ -175,15 +175,13 @@ Imagine you want to study a YouTube video about "Quantum Physics":
 
 ### Screenshots
 
-You can find example screenshots of the application in the `examples/screenshots/` folder.
+You can find example screenshots of the application in the `examples/` folder.
 
-*   [Screenshot of the Content Upload Section](examples/screenshots/upload-section.png)
-*   [Screenshot of Study Notes](examples/screenshots/study-notes.png)
-*   [Screenshot of a Quiz](examples/screenshots/quiz-example.png)
-*   [Screenshot of Flashcards](examples/screenshots/flashcards-example.png)
-*   [Screenshot of Chat Interface](examples/screenshots/chat-interface.png)
-
-**(Remember to create these example screenshots and place them in the `examples/screenshots/` folder and update the links above accordingly. If you are using GIFs, mention them and update paths.)**
+*   [Screenshot of the Content Upload Section](examples/upload-section.png)
+*   [Screenshot of Study Notes](examples/study-notes-1.png)
+*   [Screenshot of a Quiz](examples/quiz-example-1.png)
+*   [Screenshot of Flashcards](examples/flashcards-example-1.png)
+*   [Screenshot of Chat Interface](examples/chat-interface.png)
 
 ## 📜 License
 
