@@ -10,6 +10,10 @@ import sqlite3
 import requests
 import time
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse, parse_qs    
+import urllib3
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # --- Basic App Configuration ---
 def init_app():
@@ -134,8 +138,19 @@ def init_db():
     conn.close()
 
 # --- Web Search Helper Functions ---
+def create_http_session():
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        allowed_methods=frozenset(['GET', 'POST'])
+    )
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    return session
+
 def search_web(query, num_results=5):
-    """Search the web using Google Custom Search JSON API."""
+    """Search with retries and better error handling"""
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "key": os.environ.get("GOOGLE_API_KEY"),
@@ -143,22 +158,35 @@ def search_web(query, num_results=5):
         "q": query,
         "num": num_results,
     }
+    
+    session = create_http_session()
     try:
-        response = requests.get(url, params=params)
+        response = session.get(url, params=params, timeout=10)
         response.raise_for_status()
         results = response.json()
         return [item['link'] for item in results.get('items', [])]
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"Search error: {str(e)}")
         return []
 
 def fetch_page_content(url):
-    """Fetch and extract text content from a webpage."""
+    """Fetch content with better headers and timeout handling"""
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Referer": "https://www.google.com/"
         }
-        response = requests.get(url, headers=headers, timeout=15)
+        session = create_http_session()
+        response = session.get(url, headers=headers, timeout=15)
+        
+        content_type = response.headers.get('Content-Type', '')
+        if 'text/html' not in content_type:
+            return ""
+
         soup = BeautifulSoup(response.content, 'html.parser')
         for element in soup(['script', 'style', 'nav', 'footer', 'header', 'form']):
             element.decompose()
@@ -173,12 +201,12 @@ def fetch_page_content(url):
 def generate_search_queries(content_text, num_queries=3):
     """Generate relevant search queries using Gemini."""
     prompt = f"""
-    Based on the following content, generate {num_queries} relevant search queries to find additional information that could enhance understanding of the topic.
-    Return the queries as a JSON array of strings, for example: ["query1", "query2", "query3"].
-    Ensure the response is a valid JSON array.
-
     CONTENT:
     {content_text}
+
+    Based on the content provided above, generate {num_queries} relevant search queries to find additional information that could enhance understanding of the topic.
+    Return the queries as a JSON array of strings, for example: ["query1", "query2", "query3"].
+    Ensure the response is a valid JSON array.
     """
     try:
         response = model.generate_content(prompt)
@@ -208,28 +236,72 @@ def generate_search_queries(content_text, num_queries=3):
 
 # --- Content Processing Functions ---
 def extract_video_id(url):
-    """Extract YouTube video ID from URL."""
-    if 'youtu.be' in url:
-        return url.split('/')[-1]
-    elif 'youtube.com/watch' in url:
-        from urllib.parse import parse_qs, urlparse
-        return parse_qs(urlparse(url).query)['v'][0]
-    else:
-        raise ValueError("Invalid YouTube URL")
+    """Extract YouTube video ID from URL, supporting various formats."""
+    parsed = urlparse(url)
+    if parsed.netloc == 'youtu.be':
+        path_segments = parsed.path.split('/')
+        video_id = path_segments[1] if len(path_segments) > 1 else None
+        if video_id:
+            return video_id.split('?')[0]
+        else:
+            raise ValueError("Invalid YouTube URL: No video ID found in youtu.be path")
+    
+    elif parsed.netloc in ('www.youtube.com', 'youtube.com'):
+        if parsed.path == '/watch' and 'v' in parse_qs(parsed.query):
+            return parse_qs(parsed.query)['v'][0]
+        
+        path_segments = parsed.path.split('/')
+        for i, segment in enumerate(path_segments):
+            if segment in ['live', 'embed', 'v', 'shorts']:
+                if i+1 < len(path_segments):
+                    video_id = path_segments[i+1]
+                    return video_id.split('?')[0] 
+                else:
+                    raise ValueError(f"Invalid YouTube URL: No video ID after /{segment}")
+        
+        if len(path_segments) >= 2 and path_segments[1]:
+            return path_segments[1].split('?')[0]
+    
+    raise ValueError("Invalid YouTube URL: Could not extract video ID")
 
 def extract_from_youtube(url):
-    """Extract content and title from YouTube video."""
+    """Extract content from YouTube video with better transcript handling"""
     try:
         video_id = extract_video_id(url)
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        
+        # First try to get English transcript
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        except:
+            # If English fails, list all available transcripts and try to use the first available
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            # Try to find generated transcript first
+            generated_transcripts = [t for t in transcript_list if t.is_generated]
+            if generated_transcripts:
+                transcript = generated_transcripts[0].fetch()
+            else:
+                # Try any manually created transcript
+                manual_transcripts = [t for t in transcript_list if not t.is_generated]
+                if manual_transcripts:
+                    transcript = manual_transcripts[0].fetch()
+                else:
+                    raise ValueError("No transcripts available")
+
         full_text = " ".join([entry['text'] for entry in transcript]).replace("\n", " ").strip()
+        
+        # Get detected language
+        lang_code = transcript[0].get('language', 'unknown') if transcript else 'unknown'
+        lang_note = f"[Transcript Language: {lang_code}]"
+        
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         response = requests.get(video_url)
         soup = BeautifulSoup(response.content, 'html.parser')
         title = soup.find('title').text.replace(" - YouTube", "").strip()
+        
         return {
             "title": title,
-            "text": full_text,
+            "text": f"{lang_note}\n{full_text}",
             "source": url,
             "type": "youtube"
         }
@@ -257,7 +329,12 @@ def process_content(content_datas, web_search=True):
     titles = [cd['title'] for cd in content_datas]
     combined_title = " and ".join(titles) if len(titles) <= 3 else f"{len(titles)} combined sources"
 
-    # Generate search queries and fetch web content if web search is enabled
+    # Calculate content metrics for dynamic note length
+    content_length = len(combined_text)
+    word_count = len(combined_text.split())
+    lower_target_length = max(1000, min(int(content_length * 0.15), 250000))  
+    upper_target_length = max(1000, min(int(content_length * 0.25), 250000))  
+
     web_context = ""
     sources = []
     if web_search:
@@ -272,16 +349,46 @@ def process_content(content_datas, web_search=True):
                     web_context += f"[[Source {source_id}]]\n{content}\n\n"
     
     notes_prompt = f"""
-    Create comprehensive and detailed study notes {'by combining the following original content with the additional web sources provided' if web_search else 'based on the following original content'}.
-    Include all key points, explanations, and relevant details{' from both the original content and the web sources' if web_search else ''}.
-    Organize the information into main topics and subtopics with bullet points. Use Markdown formatting for clarity.
-    {'When incorporating information that originates from the web sources (not from the original content), cite them using [[Source X]]. Do not cite the original content.' if web_search else ''}
-    
-    Original Content:
+    Original Content (Length: {content_length} chars, {word_count} words):
     {combined_text}
-    
+
     {'Additional Web Sources:' + web_context if web_search else ''}
-    
+
+    Use Markdown syntax for formatting:
+    - # for headings (e.g., # Main Topic, ## Subtopic)
+    - - or 1. for unordered and ordered lists
+    - **bold** and *italics* for emphasis
+    - `inline code` for technical terms or variables
+    - ``` for code blocks (specify language if applicable, e.g., ```python)
+    - > for blockquotes
+    - ~~strikethrough~~ for outdated information
+    - --- for horizontal rules to separate sections
+    - [link text](URL) for external resources
+
+    For mathematical expressions, use LaTeX:
+    - $inline math$ for equations within text
+    - $$display math$$ for standalone equations
+
+    Your job is to create comprehensive and detailed study notes in English{'by combining the original content with the additional web sources provided above.' if web_search else 'based on the original content above'}.
+
+    Include all key points, explanations, and relevant details{' from both the original content and the web sources' if web_search else ''}.
+
+    Target length: Approximately between {lower_target_length} and {upper_target_length} characters, which can be further adjusted based on the depth, complexity, and length of the content.
+
+    Organize the notes into clear sections and subsections using headings. Use lists to enumerate key points or steps. Include code blocks for examples or algorithms, and blockquotes for important definitions or quotes.
+
+    Use the following markers for special content:
+    - **Definition:** for definitions
+    - **Theorem:** for theorems
+    - **Proof:** for proofs
+    - **Key Point:** for important concepts
+
+    {'When incorporating information that originates from the web sources (not from the original content), cite them using [[Source X]]. Do not cite the original content.' if web_search else ''}
+
+    Write in a formal, academic tone. Cover all key aspects of the content, providing explanations, examples, and applications where relevant.
+
+    Ensure the notes are clear, concise, and easy to follow, suitable for studying and review. They strictly must follow the formatting as described above.
+
     NOTES:
     """
     
@@ -320,22 +427,25 @@ def process_content(content_datas, web_search=True):
 
 # --- Feature Generation Functions ---
 def generate_quizzes(content_id, difficulty=None, num_questions=5):
-    """Generate quiz questions with web-enhanced context."""
+    """Generate quiz questions with web-enhanced context and increased difficulty."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT original_text, notes, web_search_enabled FROM content WHERE id = ?", (content_id,))
+        # Get existing quizzes to avoid duplication
+        cursor.execute("SELECT questions FROM quizzes WHERE content_id = ?", (content_id,))
+        existing_questions = []
+        for row in cursor.fetchall():
+            existing_questions.extend(json.loads(row['questions']))
+        # Get content data
+        cursor.execute("SELECT original_text, notes, web_search_enabled FROM content WHERE id = ?", (content_id,))        
         result = cursor.fetchone()
         if not result:
             return {"error": "Content not found"}
         original_text, notes, web_search_enabled = result['original_text'], result['notes'], bool(result['web_search_enabled'])
-    except Exception as e:
-        return {"error": f"Failed to fetch content from database: {str(e)}"}
     finally:
         conn.close()
 
-    if difficulty is None:
-        difficulty = determine_quiz_difficulty(content_id)
+    difficulty = determine_quiz_difficulty(content_id)
 
     web_context = ""
     if web_search_enabled:
@@ -348,17 +458,33 @@ def generate_quizzes(content_id, difficulty=None, num_questions=5):
                     web_context += f"\n\n{content}"
 
     quiz_prompt = f"""
-    Create a quiz with {num_questions} questions based on the following notes{' and additional web context' if web_search_enabled else ''}.
-    The questions should be at the '{difficulty}' level of Bloom's Taxonomy and contextually enriched.
-    Each question should include:
-    - A clear explanation of why the answer is correct
-    - Common misconceptions for incorrect options
-    - Additional context or related concepts
+    ORIGINAL CONTENT:
+    {original_text}
 
     NOTES:
     {notes}
 
-    {'WEB CONTEXT:' + web_context if web_search_enabled else ''}
+    {'EXISTING QUESTIONS (DO NOT REPEAT THESE):' + json.dumps(existing_questions, indent=2) if existing_questions else "No existing questions"}
+
+    Create a quiz with {num_questions} multiple-choice questions in English, based on the content given above.
+    The questions should be at the '{difficulty}' level of Bloom's Taxonomy and contextually enriched.
+    Questions must be substantively different from existing ones shown above (if any).
+
+    **Crucially, design the questions and answer options to be challenging and non-obvious:**
+    *   **Focus on Deeper Understanding:**  Instead of simple recall, emphasize conceptual understanding, application of knowledge, analysis of information, and evaluation of concepts.
+    *   **Semantically Similar Options:**  Craft the incorrect answer options (distractors) to be *semantically similar* to the correct answer.  They should be plausible but ultimately incorrect, requiring careful consideration of the nuances of the material.
+    *   **Subtle Differences:** The differences between the correct answer and the distractors should be subtle, requiring close reading and a good grasp of the material.
+    *   **Incorporate Misconceptions:**  Use common misconceptions or misunderstandings related to the topic as the basis for some of the incorrect options.
+    *   **Avoid Length Bias:** Do *not* consistently make the longest option the correct one.  Vary the length of the correct answer. The correct answer should not follow any pattern based on length or wording.
+    *   **Contextual Clues**: Make sure that question is not providing obvious contextual clues to what the right answer could be.
+
+    Each question should include:
+    - A clear question stem.
+    - Four (4) answer options (A, B, C, and D).
+    - Indication of the correct answer.
+    - A clear explanation of *why* the correct answer is correct.
+    - Explanations of common misconceptions associated with the *incorrect* options (why someone might choose them).
+    - Additional context or related concepts, connecting the question to the broader topic.
 
     Return a JSON array of objects with the following structure:
     [
@@ -367,13 +493,12 @@ def generate_quizzes(content_id, difficulty=None, num_questions=5):
             "options": ["Option A", "Option B", "Option C", "Option D"],
             "correct_answer": "Option A",
             "explanation": "Why this is the correct answer",
-            "misconceptions": "Common misconceptions about this topic",
+            "misconceptions": "Common misconceptions about this topic (why incorrect options might be chosen)",
             "related_concepts": "Additional context or related ideas",
             "bloom_level": "{difficulty}"
         }}
     ]
-    Ensure the response is a valid JSON array.
-    """
+    Ensure the response is a valid JSON array. If any text contains LaTeX or special characters, escape backslashes with another backslash (e.g., \\sqrt instead of \sqrt) to ensure JSON compatibility.    """
     try:
         quiz_response = model.generate_content(quiz_prompt)
         if not quiz_response.candidates:
@@ -445,25 +570,41 @@ def determine_quiz_difficulty(content_id):
     return performance[0][0] if performance else "Understand"
 
 def generate_flashcards(content_id):
-    """Generate flashcards from notes."""
+    """Generate flashcards from original content."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT notes FROM content WHERE id = ?", (content_id,))
+        # Get existing flashcards to avoid duplication
+        cursor.execute("SELECT cards FROM flashcards WHERE content_id = ?", (content_id,))
+        existing_cards = []
+        for row in cursor.fetchall():
+            existing_cards.extend(json.loads(row['cards']))
+
+        # Get content data
+        cursor.execute("SELECT original_text, notes FROM content WHERE id = ?", (content_id,))
         result = cursor.fetchone()
         if not result:
             return {"error": "Content not found"}
-        notes = result['notes']
+        original_text, notes = result['original_text'], result['notes']
     except Exception as e:
         return {"error": f"Failed to fetch content from database: {str(e)}"}
     finally:
         conn.close()
+        
+    # Modified prompt to use original_text
     flashcard_prompt = f"""
-    Create 10 flashcards based on the following notes.
-    Each flashcard should have a clear question and a concise answer.
+    ORIGINAL CONTENT:
+    {original_text}
 
     NOTES:
     {notes}
+
+    EXISTING FLASHCARDS (DO NOT REPEAT THESE):
+    {json.dumps(existing_cards, indent=2) if existing_cards else "No existing flashcards"}
+    
+    Create 10 flashcards in English, using original language terms where appropriate, but questions/answers must be in English, based on the content given above.
+    Questions/answers must be substantively different from existing ones shown above (if any).
+    Each flashcard should have a clear question and a concise answer.
 
     Return a JSON array of objects with the following structure:
     [
@@ -472,8 +613,7 @@ def generate_flashcards(content_id):
             "answer": "Answer text"
         }}
     ]
-    Ensure the response is a valid JSON array.
-    """
+    Ensure the response is a valid JSON array. If any text contains LaTeX or special characters, escape backslashes with another backslash (e.g., \\sqrt instead of \sqrt) to ensure JSON compatibility.    """
     try:
         flashcard_response = model.generate_content(flashcard_prompt)
         if not flashcard_response.candidates:
@@ -562,21 +702,64 @@ class ChatSession:
 def chat_with_content(content_id, user_message):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT notes FROM content WHERE id = ?", (content_id,))
+    cursor.execute("SELECT original_text, notes, web_search_enabled FROM content WHERE id = ?", (content_id,))    
     content_result = cursor.fetchone()
     conn.close()
     if not content_result:
         return {"error": "Content not found"}
-    notes = content_result['notes']
+    original_text, notes, web_search_enabled = content_result['original_text'], content_result['notes'], bool(content_result['web_search_enabled'])
+    
     chat_session = ChatSession(content_id)
     chat_session.load_history_from_db()
+    
+    # Generate web context if enabled
+    web_context = ""
+    if web_search_enabled:
+        try:
+            # Generate search queries based on user's message
+            search_queries = generate_search_queries(f"{user_message}\n\nRelevant Notes:\n{notes}", num_queries=2)
+            sources = []
+            
+            # Fetch web content for each query
+            for query in search_queries:
+                urls = search_web(query, num_results=1)
+                for url in urls:
+                    content = fetch_page_content(url)
+                    if content:
+                        source_id = len(sources) + 1
+                        sources.append(f"[[Source {source_id}: {url}]]")
+                        web_context += f"[[Source {source_id}]]\n{content}\n\n"
+            
+            # Add source references
+            if sources:
+                web_context += "Reference these sources using [[Source X]] when applicable.\n"
+        
+        except Exception as e:
+            print(f"Web search error: {str(e)}")
+
+    # Prepare the message with web context
+    message_parts = [
+        user_message,
+        f"\n\nStudy Notes Context:\n{notes}",
+        f"\n\nWeb Results:\n{web_context}" if web_context else ""
+    ]
+    if web_context:
+        message_parts.append(f"\n\nWeb Context:\n{web_context}")
+
+    # Add original content to history if first interaction
     if not chat_session.get_history():
-        # Add initial context with study notes
-        chat_session.add_message("model", ["Here are the study notes for your reference: " + notes])
+        chat_session.add_message("model", [f"Original Content:\n{original_text}\n\nStudy Notes:\n{notes}"])
+    
+    # Add user message to history (without web context)
     chat_session.add_message("user", [user_message])
-    chat = model.start_chat(history=chat_session.get_history()[:-1])
+    
     try:
-        response = chat.send_message(chat_session.get_history()[-1]["parts"])
+        # Start chat with history except last message
+        chat = model.start_chat(history=chat_session.get_history()[:-1])
+        
+        # Send enhanced message with web context
+        response = chat.send_message(message_parts)
+        
         if response.candidates:
             candidate = response.candidates[0]
             if candidate.finish_reason == 1:  # "STOP"
@@ -588,11 +771,11 @@ def chat_with_content(content_id, user_message):
                     "history": chat_session.get_history()
                 }
             else:
-                return {"error": f"Chat response generation incomplete: {candidate.finish_reason}"}
+                return {"error": f"Chat response incomplete: {candidate.finish_reason}"}
         else:
-            return {"error": "No chat response from API"}
+            return {"error": "No response from API"}
     except Exception as e:
-        return {"error": f"Failed to generate chat response: {str(e)}"}
+        return {"error": f"Failed to generate response: {str(e)}"}
 
 def record_quiz_performance(content_id, quiz_id, bloom_level, correct, total):
     """Record quiz performance in the database."""
@@ -772,6 +955,11 @@ def bad_request(error):
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Resource not found"}), 404
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    app.logger.error(f"Unhandled exception: {str(e)}")
+    return jsonify({"error": "An unexpected error occurred"}), 500
 
 # --- Main Entry Point ---
 if __name__ == '__main__':
