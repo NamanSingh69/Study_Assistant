@@ -1,0 +1,941 @@
+/* Base styles and font import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-focus: #1d4ed8;
+  --secondary: #4b5563;
+  --secondary-hover: #374151;
+  --danger: #dc2626;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --surface-1: #1f2937;
+  --surface-2: #111827;
+  --surface-3: #374151;
+  --surface-4: #4b5563;
+  --text-1: #f9fafb;
+  --text-2: #e5e7eb;
+  --text-3: #d1d5db;
+  --text-4: #9ca3af;
+  --border-1: rgba(255, 255, 255, 0.1);
+  --border-2: rgba(255, 255, 255, 0.05);
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--surface-2);
+  color: var(--text-2);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Card Styling */
+.card {
+  background-color: var(--surface-1);
+  border-radius: 12px;
+  box-shadow: var(--shadow-1);
+  padding: 1.5rem;
+  transition: box-shadow var(--transition-normal);
+  border: 1px solid var(--border-1);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-2);
+}
+
+/* Sidebar Styles */
+#sidebar {
+  width: 280px;
+  background-color: var(--surface-1);
+  box-shadow: var(--shadow-2);
+  transition: all var(--transition-slow);
+  border-right: 1px solid var(--border-1);
+  z-index: 50;
+}
+
+#sidebar.collapsed-desktop {
+  width: 68px;
+}
+
+#sidebar.collapsed-desktop .sidebar-link span:not(.material-icons-round) {
+  display: none;
+}
+
+#sidebar.collapsed-desktop #collapse-text {
+  display: none;
+}
+
+/* Mobile Sidebar - Translate off-screen */
+@media (max-width: 767px) {
+  #sidebar {
+    width: 280px;
+    transform: translateX(0);
+  }
+  
+  #sidebar.collapsed-mobile {
+    transform: translateX(-100%);
+  }
+  
+  /* Adjust main content margin when sidebar is open/closed */
+  #main-content {
+    margin-left: 0 !important;
+    transition: margin-left var(--transition-slow);
+  }
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  color: var(--text-3);
+  transition: all var(--transition-normal);
+  font-weight: 500;
+}
+
+.sidebar-link:hover {
+  background-color: var(--surface-3);
+  color: var(--text-1);
+}
+
+.sidebar-link.active-link {
+  background-color: var(--primary);
+  color: white;
+  font-weight: 600;
+}
+
+.sidebar-link.disabled-link {
+  color: var(--text-4);
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: transparent !important;
+}
+
+.sidebar-link .material-icons-round {
+  margin-right: 1rem;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+}
+
+/* Main Content Styles */
+#main-content {
+  transition: margin-left var(--transition-slow);
+}
+
+/* View transition */
+.view {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.indeterminate-progress {
+  width: 100%; /* Will be scaled by animation */
+  animation: indeterminate 1.8s ease-in-out infinite;
+  transform-origin: 0% 50%;
+  will-change: transform; /* Performance hint */
+}
+
+@keyframes indeterminate {
+  0% { transform: translateX(-100%) scaleX(0.1); opacity: 0.5; }
+  50% { transform: translateX(0%) scaleX(0.7); opacity: 1; }
+  100% { transform: translateX(100%) scaleX(0.1); opacity: 0.5; }
+}
+
+/* Loading text corner */
+#loading-text-corner {
+    /* Tailwind classes handle most styling */
+    z-index: 61; /* Ensure it's above content but potentially below modals */
+}
+
+#sidebar.collapsed-desktop .p-4.border-b {
+   /* Center the collapse button when collapsed */
+   justify-content: center;
+}
+
+#collapse-sidebar-desktop {
+    margin-left: auto; /* Push to the right in normal view */
+    order: 2; /* Ensure it comes after any potential future logo/brand element */
+}
+#sidebar.collapsed-desktop #collapse-sidebar-desktop {
+    margin-left: 0; /* Reset margin when collapsed */
+}
+
+/* Center icon in collapsed sidebar link */
+#sidebar.collapsed-desktop .sidebar-link {
+  justify-content: center; /* Center icon horizontally */
+  padding-left: 0; /* Remove padding that might affect centering */
+  padding-right: 0;
+}
+#sidebar.collapsed-desktop .sidebar-link .material-icons-round {
+   margin-right: 0; /* Remove margin when text is hidden */
+   font-size: 1.5rem; /* Slightly larger icon when collapsed? Optional */
+}
+
+/* Inputs and Form Elements */
+.input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-3);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: var(--surface-3);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  color: var(--text-1);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+  font-size: 0.95rem;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.input-field::placeholder {
+  color: var(--text-4);
+}
+
+.input-field-small {
+  padding: 0.5rem 0.75rem;
+  background-color: var(--surface-3);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  color: var(--text-1);
+  transition: border-color var(--transition-normal);
+  font-size: 0.9rem;
+}
+
+.input-field-small:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.select-field {
+  background-color: var(--surface-3);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  padding: 0.5rem 2rem 0.5rem 1rem;
+  color: var(--text-2);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%239ca3af' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.5em;
+}
+
+.select-field:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Drag and drop zone */
+.drag-drop-zone {
+  width: 100%;
+  height: 160px;
+  border: 2px dashed var(--border-1);
+  border-radius: 12px;
+  background-color: var(--surface-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-4);
+  transition: all var(--transition-normal);
+  cursor: pointer;
+}
+
+.drag-drop-zone:hover {
+  border-color: var(--primary);
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.drag-drop-zone.drag-active {
+  border-color: var(--primary);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  transition: all var(--transition-normal);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  background-color: var(--primary-focus);
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-3);
+  color: var(--text-2);
+  font-weight: 500;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  transition: all var(--transition-normal);
+  border: 1px solid var(--border-1);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: var(--surface-4);
+  color: var(--text-1);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-normal);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.btn-text:hover {
+  color: var(--primary-hover);
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-3);
+  color: var(--text-3);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all var(--transition-normal);
+  border: 1px solid var(--border-1);
+  cursor: pointer;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background-color: var(--surface-4);
+  color: var(--text-1);
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary);
+  color: white;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  transition: all var(--transition-normal);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-send:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background-color: var(--surface-3);
+  border: 1px solid var(--border-1);
+  color: var(--text-1);
+  resize: none;
+  transition: border-color var(--transition-normal);
+  font-size: 0.95rem;
+  min-height: 48px;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Notes View Styles */
+.prose {
+  color: var(--text-2);
+  max-width: none;
+}
+
+.prose a {
+  color: #60a5fa;
+  text-decoration: underline;
+  transition: color var(--transition-normal);
+}
+
+.prose a:hover {
+  color: #93c5fd;
+}
+
+/* Code block styling */
+.prose pre {
+  background-color: #1a1e2d !important;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 1em;
+  overflow-x: auto;
+  position: relative;
+  margin: 1.5em 0;
+}
+
+.prose pre code {
+  background-color: transparent !important;
+  padding: 0;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+  display: block;
+  overflow-x: auto;
+}
+
+/* Style inline code */
+.prose code:not(pre code) {
+  background-color: #2d3748;
+  color: #e2e8f0;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  word-break: break-word;
+}
+
+/* Blockquote styling */
+.prose blockquote {
+  border-left: 4px solid #4a5568;
+  padding: 0.8rem 1rem;
+  margin: 1.5rem 0;
+  background-color: rgba(74, 85, 104, 0.1);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  color: #cbd5e1;
+}
+
+/* Headings */
+.prose h1 { font-size: 2em; margin-bottom: 0.8em; padding-bottom: 0.3em; border-bottom: 1px solid #4a5568; }
+.prose h2 { font-size: 1.6em; margin-bottom: 0.7em; padding-bottom: 0.2em; border-bottom: 1px solid #4a5568;}
+.prose h3 { font-size: 1.3em; margin-bottom: 0.6em; }
+.prose h4 { font-size: 1.1em; margin-bottom: 0.5em; }
+
+/* Lists */
+.prose ul, .prose ol { padding-left: 1.5em; margin-bottom: 1em;}
+.prose li { margin-bottom: 0.5em; }
+
+/* Style LaTeX math blocks rendered by MathJax */
+.MathJax_Display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5em 0;
+  margin: 1em 0;
+  display: block;
+  background-color: rgba(45, 55, 72, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+/* Source link styling */
+.source-link {
+  color: #a0aec0;
+  text-decoration: none;
+  border-bottom: 1px dotted #718096;
+  font-size: 0.85em;
+  margin-left: 0.2em;
+  transition: color var(--transition-normal), border-color var(--transition-normal);
+}
+
+.source-link:hover {
+  color: #63b3ed;
+  border-color: #63b3ed;
+}
+
+/* Quiz Styles */
+.quiz-question {
+  background-color: var(--surface-1);
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-1);
+  border: 1px solid var(--border-1);
+}
+
+.option-container {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-1);
+  transition: background-color var(--transition-normal);
+  cursor: pointer;
+}
+
+.option-container:hover {
+  background-color: var(--surface-3);
+}
+
+.option-container input[type="radio"],
+.option-container input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.option-container label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.feedback-container {
+  transition: max-height 0.5s ease-out, opacity 0.5s ease;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+}
+
+.feedback-container:not(.hidden) {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.matching-container li {
+  list-style: none;
+}
+
+/* Flashcard Styles */
+.flashcard-container {
+  perspective: 1000px;
+}
+
+.flashcard {
+  transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform-style: preserve-3d;
+  position: relative;
+  border-radius: 16px;
+  box-shadow: var(--shadow-3);
+}
+
+.flashcard.flipped {
+  transform: rotateY(180deg);
+}
+
+.flashcard-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border-radius: 16px;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.flashcard-front {
+  background: linear-gradient(135deg, var(--surface-3), var(--surface-1));
+  border: 1px solid var(--border-1);
+}
+
+.flashcard-back {
+  background: linear-gradient(135deg, var(--primary-focus), var(--primary));
+  color: white;
+  transform: rotateY(180deg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.flashcard-face .prose {
+  font-size: 1.1rem;
+  color: inherit;
+}
+
+/* Mind Map Styles */
+#mindmap-container {
+  width: 100%;
+  min-height: 400px;
+  position: relative;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: auto;
+}
+
+/* Make sure this css applies to mermaid */
+.mermaid .node rect,
+.mermaid .node circle,
+.mermaid .node ellipse,
+.mermaid .node polygon,
+.mermaid .node path {
+  fill: #2d3748 !important;
+  stroke: #4a5568 !important;
+  stroke-width: 1px !important;
+}
+
+.mermaid .node .label {
+  color: white !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.mermaid .node text {
+  fill: #e5e7eb !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+}
+
+.mermaid .edgeLabel text {
+  fill: #e5e7eb !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 12px !important;
+}
+
+.mermaid .edgeLabel rect {
+  fill: #1f2937 !important;
+  opacity: 0.7 !important;
+}
+
+.mermaid .edgePath path {
+  stroke: #6b7280 !important;
+  stroke-width: 2px !important;
+}
+
+.mermaid .edgePath marker path {
+  fill: #6b7280 !important;
+}
+
+.mermaid .cluster rect {
+  fill: #111827 !important;
+  stroke: #4b5563 !important;
+}
+
+/* Chat Styles */
+.chat-bubble {
+  word-wrap: break-word;
+  border-radius: 12px;
+  padding: 0.8rem 1.2rem;
+  max-width: 85%;
+  position: relative;
+}
+
+.chat-bubble.user {
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-bubble.assistant {
+  background-color: var(--surface-3);
+  color: var(--text-2);
+  margin-right: auto;
+  border-bottom-left-radius: 2px;
+}
+
+.chat-bubble p {
+  margin-bottom: 0.5em;
+}
+
+.chat-bubble ul, .chat-bubble ol {
+  margin: 0.5em 0 0.5em 1.5em;
+}
+
+.chat-bubble pre {
+  margin: 0.5em 0;
+  font-size: 0.85em;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 640px) {
+  .card {
+    padding: 1rem;
+  }
+  
+  .prose h1 {
+    font-size: 1.8em;
+  }
+  
+  .prose h2 {
+    font-size: 1.4em;
+  }
+  
+  .chat-bubble {
+    max-width: 90%;
+  }
+}
+
+/* Dark mode optimization */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: var(--surface-2);
+  }
+}
+
+/* --- START: Add this block to the end of style.css --- */
+@media print {
+  /* Hide elements not meant for printing */
+  #sidebar,
+  #sidebar-overlay,
+  #main-content > .bg-gray-800.py-3, /* Hide top header bar */
+  #toggle-original-content,
+  #original-content-container,
+  .flex.justify-between.items-center.mb-6, /* Hide view headers */
+  .card .flex.justify-between.items-center, /* Hide internal card headers */
+  #download-format,
+  #download-notes-btn,
+  #generate-more-questions-btn,
+  #quiz-options,
+  #quiz-actions,
+  #generate-more-flashcards-btn,
+  #flashcard .flex.justify-center, /* Hide flashcard nav buttons */
+  #card-counter,
+  #generate-mindmap-btn,
+  #chat-view .flex.items-center.gap-2, /* Hide chat input area */
+  .btn-primary, .btn-secondary, .btn-icon, .btn-text, .btn-send /* Hide various buttons */ {
+    display: none !important;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Times New Roman', Times, serif; /* Use a serif font for better print readability */
+    font-size: 12pt; /* Standard print size */
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Adjust main content area for printing */
+  #main-content {
+    margin-left: 0 !important; /* Remove sidebar margin */
+    padding: 1cm !important; /* Add print margins */
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure the notes view and content take full width */
+  #notes-view, #notes-content {
+    display: block !important; /* Ensure it's visible */
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+  }
+
+  /* Make notes title printable */
+  #notes-title {
+    font-size: 1.5rem;
+    color: #000000;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Ensure prose styles adapt for print */
+  .prose {
+    color: #000000 !important;
+  }
+
+  .prose a {
+    color: #0000ee; /* Standard blue link color */
+    text-decoration: underline;
+  }
+
+  .prose a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 9pt;
+      color: #555;
+  }
+   .source-link::after {
+        content: " (" attr(href) ")";
+        font-size: 9pt;
+        color: #555;
+   }
+
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    color: #000000;
+    page-break-after: avoid;
+  }
+
+  .prose pre, .prose code:not(pre code) {
+    background-color: #f0f0f0 !important;
+    color: #000000 !important;
+    border: 1px solid #ccc;
+    page-break-inside: avoid;
+  }
+
+  .prose blockquote {
+    border-left: 3px solid #ccc;
+    color: #333;
+    background-color: #f9f9f9 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Control page breaks */
+  pre, blockquote, figure, table, ul, ol {
+    page-break-inside: avoid;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  li {
+      page-break-inside: avoid;
+  }
+
+   /* Ensure Mermaid SVGs print */
+   .mermaid svg {
+       width: 100% !important; /* Ensure it scales */
+       max-width: 100% !important;
+       height: auto !important;
+       display: block !important; /* Make sure it's block level */
+       page-break-inside: avoid; /* Try to keep diagrams on one page */
+   }
+    /* Force SVG fill/stroke colors for print if needed */
+   .mermaid svg .node rect,
+   .mermaid svg .node circle,
+   .mermaid svg .node ellipse,
+   .mermaid svg .node polygon,
+   .mermaid svg .node path {
+       fill: #f9f9f9 !important; /* Light background for nodes */
+       stroke: #333 !important; /* Dark stroke */
+   }
+   .mermaid svg .node text,
+   .mermaid svg .node .label {
+       fill: #000 !important; /* Black text */
+   }
+   .mermaid svg .edgePath path {
+       stroke: #333 !important; /* Dark lines */
+   }
+    .mermaid svg .edgePath marker path {
+       fill: #333 !important; /* Dark arrowheads */
+   }
+}
+
+/* --- Mind Map Fullscreen Styles --- */
+
+body.mindmap-fullscreen-active {
+  overflow: hidden; /* Prevent scrolling the body */
+}
+
+body.mindmap-fullscreen-active #sidebar,
+body.mindmap-fullscreen-active #main-content > .bg-gray-800.py-3, /* Hide top header */
+body.mindmap-fullscreen-active #mindmap-view > .flex.justify-between /* Hide mindmap view header */ {
+  display: none;
+}
+
+body.mindmap-fullscreen-active #main-content {
+  margin-left: 0 !important; /* Remove sidebar margin */
+  padding: 0 !important; /* Remove main content padding */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100; /* Ensure it's above everything */
+  background-color: var(--surface-2); /* Match body background */
+}
+
+body.mindmap-fullscreen-active #mindmap-view {
+  height: 100%; /* Make view take full height */
+}
+
+body.mindmap-fullscreen-active #mindmap-card {
+  position: fixed; /* Take out of flow */
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 110; /* Above main content background */
+  border-radius: 0; /* Remove card radius */
+  padding: 1rem; /* Basic padding */
+  border: none;
+  background-color: var(--surface-1); /* Ensure background */
+}
+
+body.mindmap-fullscreen-active #mindmap-container {
+  height: calc(100% - 2rem); /* Fill available space within the padded card */
+  min-height: 0; /* Override previous min-height */
+  max-height: none;
+}
+
+/* Adjust mermaid/cytoscape container in fullscreen */
+body.mindmap-fullscreen-active #mindmap-container > .mind-map-rendered {
+  height: 100%;
+  width: 100%;
+}
+
+/* Ensure exit button is visible in fullscreen */
+body.mindmap-fullscreen-active #mindmap-exit-fullscreen-btn {
+  display: inline-flex; /* Show the button */
+}
