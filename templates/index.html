@@ -1,948 +1,443 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Study Assistant</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Assistant</title>
+    <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- jsPDF and html2canvas for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-MML-AM_CHTML"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- MathJax for LaTeX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-MML-AM_CHTML"></script>
     <script type="text/x-mathjax-config">
         MathJax.Hub.Config({
             tex2jax: {
                 inlineMath: [['$','$'], ['\\(','\\)']],
                 displayMath: [['$$','$$'], ['\\[','\\]']],
-                processEscapes: true
-            }
+                processEscapes: true,
+                skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            },
+            messageStyle: "none"
+        });
+        MathJax.Hub.Register.StartupHook("HTML-CSS Jax Ready", function () {
+            var VARIANT = MathJax.OutputJax["HTML-CSS"].FONTDATA.VARIANT;
+            VARIANT["normal"].fonts.unshift("MathJax_SansSerif");
+            VARIANT["bold"].fonts.unshift("MathJax_SansSerif-bold");
+            VARIANT["italic"].fonts.unshift("MathJax_SansSerif-italic");
+            VARIANT["-tex-mathit"].fonts.unshift("MathJax_SansSerif-italic");
+        });
+        MathJax.Hub.Register.StartupHook("SVG Jax Ready", function () {
+            var VARIANT = MathJax.OutputJax.SVG.FONTDATA.VARIANT;
+            VARIANT["normal"].fonts.unshift("MathJax_SansSerif");
+            VARIANT["bold"].fonts.unshift("MathJax_SansSerif-bold");
+            VARIANT["italic"].fonts.unshift("MathJax_SansSerif-italic");
+            VARIANT["-tex-mathit"].fonts.unshift("MathJax_SansSerif-italic");
         });
     </script>
-    <style>
-        body { background-color: #121212; color: #e0e0e0; }
-        .quiz-question { transition: all 0.3s ease-in-out; }
-        .feedback-container { transition: all 0.3s ease-in-out; }
-        .option-container:hover { cursor: pointer; background-color: #2d3748; }
-        .flashcard-container { perspective: 1000px; }
-        .flashcard { transition: transform 0.6s; transform-style: preserve-3d; }
-        .flashcard.flipped { transform: rotateY(180deg); }
-        .flashcard-front, .flashcard-back { backface-visibility: hidden; position: absolute; width: 100%; height: 100%; }
-        .flashcard-back { transform: rotateY(180deg); }
-        .drag-active { border-color: #4299e1 !important; background-color: rgba(66, 153, 225, 0.1) !important; }
-        .prose { color: #e0e0e0; width: 100%; overflow-x: auto; font-size: 1rem; line-height: 1.75; max-width: 100%; word-wrap: break-word; }
-        .prose h1 { font-size: 2.25rem; color: #f0f0f0; border-bottom: 2px solid #4a5568; padding-bottom: 0.5rem; margin: 2rem 0 1.5rem; font-weight: 600; }
-        .prose h2 { font-size: 1.875rem; color: #e0e0e0; margin: 1.75rem 0 1rem; font-weight: 500; }
-        .prose h3 { font-size: 1.5rem; color: #d0d0d0; margin: 1.5rem 0 0.75rem; font-weight: 500; }
-        .prose strong { color: #f0f0f0; font-weight: 600; }
-        .prose em { color: #d0d0d0; font-style: italic; }
-        .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; }
-        .prose ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.5rem; }
-        .prose li { margin-bottom: 0.75rem; padding-left: 0.5rem; }
-        .prose code:not(pre code) { background-color: #2d3748; padding: 0.2em 0.4em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
-        .prose pre { background-color: #1a202c; padding: 1.5rem; border-radius: 8px; overflow-x: auto; margin: 1.5rem 0; border: 1px solid #4a5568; position: relative; }
-        .prose blockquote { border-left: 4px solid #4a5568; padding: 1rem 1.5rem; margin: 1.5rem 0; background-color: rgba(74, 85, 104, 0.1); border-radius: 0 4px 4px 0; font-style: italic; }
-        .prose table { width: 100%; border-collapse: collapse; margin: 2rem 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-        .prose th { background-color: #2d3748; padding: 0.75rem; text-align: left; font-weight: 600; border: 1px solid #4a5568; }
-        .prose td { padding: 0.75rem; border-top: 1px solid #4a5568; border-bottom: 1px solid #4a5568; }
-        .prose tr:nth-child(even) { background-color: rgba(45, 55, 72, 0.1); }
-        .foreign-term { font-style: italic; color: #a0aec0; border-bottom: 1px dashed #718096; }
-        .term-definition { padding: 1rem; background-color: rgba(66, 153, 225, 0.1); border-left: 3px solid #4299e1; margin: 1rem 0; border-radius: 4px; }
-        .process-steps { counter-reset: step-counter; padding-left: 1.5rem; margin: 1.5rem 0; }
-        .process-steps li { counter-increment: step-counter; margin-bottom: 1rem; position: relative; padding-left: 2rem; }
-        .process-steps li::before { content: counter(step-counter); position: absolute; left: 0; top: 0; background-color: #4299e1; color: white; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.875rem; }
-        .format-selector { position: fixed; top: 20px; right: 20px; z-index: 1000; background-color: #2d3748; border-radius: 8px; padding: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); }
-        .format-selector select { background-color: #1a202c; color: #e0e0e0; border: 1px solid #4a5568; border-radius: 4px; padding: 6px 12px; }
-        .academic-technical-style {line-height: 1.6;font-family: 'Cambria', 'Times New Roman', serif;color: #e0e0e0;}
-        .academic-technical-style h1 { font-size: 2rem; color: #63b3ed; border-bottom: 2px solid #4a5568; padding-bottom: 0.5rem; margin: 2rem 0 1.5rem; font-weight: 600; text-align: center; }
-        .academic-technical-style h2 { font-size: 1.5rem; color: #8eccff; border-bottom: 1px solid #4a5568; padding-bottom: 0.3rem; margin: 1.75rem 0 1rem; }
-        .academic-technical-style h3 { font-size: 1.25rem; color: #a5d8ff; margin: 1.5rem 0 0.75rem; font-style: italic; }
-        .academic-technical-style p { margin-bottom: 1.25rem; text-align: justify; }
-        .academic-technical-style ul, .academic-technical-style ol { padding-left: 2rem; margin-bottom: 1.5rem; }
-        .academic-technical-style li { margin-bottom: 0.75rem; position: relative; }
-        .academic-technical-style blockquote { border-left: 4px solid #63b3ed; padding: 1rem 1.5rem; margin: 1.5rem 0; background-color: rgba(99, 179, 237, 0.1); font-style: italic; }
-        .academic-technical-style code { font-family: 'Fira Code', 'Consolas', monospace; background-color: #2d3748; color: #f8f8f2; padding: 0.2em 0.4em; border-radius: 0.25rem; }
-        .academic-technical-style pre { background-color: #1a202c; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid #4a5568; }
-        .academic-technical-style .theorem { margin: 1.5rem 0; padding: 1rem; background-color: rgba(66, 153, 225, 0.1); border-left: 3px solid #4299e1; border-radius: 0 4px 4px 0; }
-        .academic-technical-style .theorem::before { content: 'Theorem'; font-weight: bold; display: block; color: #63b3ed; margin-bottom: 0.5rem; }
-        .academic-technical-style .proof { margin: 1.5rem 0; padding: 1rem; background-color: rgba(72, 187, 120, 0.1); border-left: 3px solid #48bb78; border-radius: 0 4px 4px 0; }
-        .academic-technical-style .proof::before { content: 'Proof'; font-weight: bold; display: block; color: #68d391; margin-bottom: 0.5rem; }
-        .academic-technical-style .math-block { background-color: rgba(45, 55, 72, 0.3); padding: 1rem; margin: 1.5rem 0; border-radius: 4px; overflow-x: auto; }
-        .academic-technical-style .math-block::before { content: 'Equation'; display: block; font-size: 0.9em; color: #a0aec0; margin-bottom: 0.5rem; }
-        .academic-technical-style .definition { background-color: rgba(104, 211, 145, 0.1); border-left: 3px solid #68d391; padding: 1rem; margin: 1.5rem 0; border-radius: 0 4px 4px 0; }
-        .academic-technical-style .definition::before { content: 'Definition'; font-weight: bold; display: block; color: #68d391; margin-bottom: 0.5rem; }
-        .math-block { overflow-x: auto; margin: 1rem 0; padding: 0.5rem; background-color: rgba(45, 55, 72, 0.3); border-radius: 0.25rem; }
-        .prose sup { vertical-align: super; font-size: 0.8em; color: inherit; line-height: 1; }
-        .prose sub { vertical-align: sub; font-size: 0.8em; color: inherit; line-height: 1; }
-        body {
-            background-color: #121212; /* Dark background */
-            color: #e0e0e0; /* Light text */
-            font-family: 'Arial', sans-serif;
-        }
+    <!-- Mermaid.js for Mind Maps -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    
+    <!-- jsPlumb for alternative mind map rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsPlumb/2.15.6/js/jsplumb.min.js"></script>
+    
+    <!-- Cytoscape.js for graph visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.25.0/cytoscape.min.js"></script>
 
-        .prose {
-            color: #e0e0e0;
-            width: 100%;
-            font-size: 1rem;
-            line-height: 1.75;
-            max-width: 100%;
-            word-wrap: break-word;
-        }
-
-        .math-block {
-            background-color: rgba(45, 55, 72, 0.3); /* Subtle gray background for equations */
-            padding: 1rem;
-            margin: 1rem 0;
-            border-radius: 4px;
-            text-align: center; /* Center display math */
-            overflow-x: auto;
-        }
-
-        .math-inline {
-            display: inline-block;
-            vertical-align: middle;
-        }
-
-        code {
-            background-color: #2d3748;
-            color: #f8f8f2;
-            padding: 0.2em 0.4em;
-            border-radius: 0.25rem;
-            font-family: 'Courier New', monospace;
-        }
-
-        /* Special content markers */
-        .definition, .key-point {
-            padding: 1rem;
-            margin: 1rem 0;
-            border-left: 4px solid;
-        }
-
-        .definition {
-            background-color: rgba(72, 187, 120, 0.1); /* Greenish background */
-            border-color: #48bb78;
-        }
-
-        .key-point {
-            background-color: rgba(255, 215, 0, 0.1); /* Yellowish background */
-            border-color: #ffd700;
-        }
-
-    </style>
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
 </head>
-<body class="bg-gray-900 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <h1 class="text-4xl font-bold mb-8 text-gray-100">Study Assistant</h1>
+<body class="bg-gray-900 text-gray-200 font-sans flex min-h-screen">
+    <!-- Overlay for mobile sidebar -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
 
-        <!-- Progress Bar -->
-        <div id="progress-bar" class="hidden fixed top-0 left-0 w-full h-1 bg-blue-500"></div>
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed top-0 left-0 h-full bg-gray-800 shadow-xl transition-all duration-300 ease-in-out z-50 flex flex-col" style="width: 280px;">
+        <!-- Logo/Header (MODIFIED) -->
+        <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+            <!-- Desktop Collapse Button (Already Moved) -->
+            <button id="collapse-sidebar-desktop" class="hidden md:flex px-2 py-1 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white items-center justify-center focus:outline-none">
+                <span id="collapse-icon" class="material-icons-round">chevron_left</span>
+                <span id="expand-icon" class="material-icons-round hidden">chevron_right</span>
+            </button>
 
-        <!-- Content Upload Section -->
-        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-2xl font-semibold mb-6 text-gray-100">Upload Content</h2>
-            <div class="mb-6">
-                <h3 class="text-lg font-medium mb-3 text-gray-200">Content URLs (one per line)</h3>
-                <textarea id="urls-input" placeholder="YouTube or website URLs" rows="3" class="w-full px-4 py-2 border rounded-lg bg-gray-700 text-gray-100 border-gray-600 focus:ring-2 focus:ring-blue-500"></textarea>
-            </div>
-            <div class="mb-6">
-                <h3 class="text-lg font-medium mb-3 text-gray-200">Files (PDF, audio, video)</h3>
-                <div id="drag-drop-area" class="w-full h-32 border-2 border-dashed border-gray-600 rounded-lg bg-gray-700 flex flex-col items-center justify-center text-gray-400 mb-4 transition-colors duration-200">
-                    <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                    </svg>
-                    <p class="text-center">Drag & drop files here or</p>
-                    <label for="files-input" class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors">
-                        <span id="file-input-label">Browse Files</span>
-                        <input type="file" id="files-input" multiple accept=".pdf,.mp3,.wav,.mp4,.avi,.mov" class="hidden">
-                    </label>
-                </div>
-                <div id="selected-files" class="mt-2 space-y-2"></div>
-            </div>
-            <div class="mb-6 flex items-center">
-                <label for="web-search-toggle" class="mr-3 text-gray-200">Enable Web Search</label>
-                <input type="checkbox" id="web-search-toggle" checked class="form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600">
-            </div>
-            <button id="process-content" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">Process Content</button>
+            <!-- Mobile Toggle Button (Keep) -->
+            <button id="toggle-sidebar" class="text-gray-400 hover:text-white focus:outline-none md:hidden">
+                <span class="material-icons-round">menu</span>
+            </button>
         </div>
 
-        <!-- Content Display Section -->
-        <div id="content-container" class="hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-                <h2 class="text-2xl font-semibold mb-4 text-gray-100">Content Information</h2>
-                <div id="content-info" class="mb-6 text-gray-300"></div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <button id="show-notes" class="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg transition-colors">View Notes</button>
-                    <button id="generate-quiz" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg transition-colors">Generate Quiz</button>
-                    <button id="generate-flashcards" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-3 rounded-lg transition-colors">Generate Flashcards</button>
-                </div>
-                <div class="border-t border-gray-700 pt-6">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-100">Chat with Content</h3>
-                    <div id="chat-history" class="mb-4 h-80 overflow-y-auto border p-4 rounded-lg bg-gray-700 border-gray-600"></div>
-                    <div class="flex gap-2">
-                        <input type="text" id="chat-input" placeholder="Ask a question..." class="flex-1 px-4 py-2 border rounded-lg bg-gray-700 text-gray-100 border-gray-600 focus:ring-2 focus:ring-blue-500">
-                        <button id="send-message" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-colors">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Notes Section -->
-        <div id="notes-container" class="hidden bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-semibold text-gray-100">Study Notes</h2>
-                <button id="close-notes" class="text-gray-400 hover:text-gray-200 text-2xl font-bold">×</button>
-            </div>
-            <div class="flex justify-end mb-4">
-                <button id="download-notes" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">Download</button>
-                <select id="download-format" class="bg-gray-700 text-gray-100 border border-gray-600 rounded-lg ml-2">
-                    <option value="pdf">PDF</option>
-                    <option value="md">Markdown</option>
-                    <option value="html">HTML</option>
-                    <option value="txt">Plain Text</option>
-                </select>
-            </div>
-            <div id="notes-content" class="prose max-w-none academic-technical-style"></div>
-        </div>
-
-        <!-- Quiz Section -->
-        <div id="quiz-container" class="hidden bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-semibold text-gray-100">Knowledge Quiz</h2>
-                <button id="close-quiz" class="text-gray-400 hover:text-gray-200 text-2xl font-bold">×</button>
-            </div>
-            <div id="quiz-content" class="space-y-6"></div>
-            <div class="mt-6 flex justify-between items-center">
-                <button id="submit-quiz" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors">Submit Answers</button>
-                <button id="generate-more-questions" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors">Generate More Questions</button>
-            </div>
-        </div>
-
-        <!-- Flashcards Section -->
-        <div id="flashcards-container" class="hidden bg-gray-800 p-6 rounded-lg shadow-md mb-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-semibold text-gray-100">Flashcards</h2>
-                <button id="close-flashcards" class="text-gray-400 hover:text-gray-200 text-2xl font-bold">×</button>
-            </div>
-            <div class="flashcard-container h-80 relative">
-                <div id="flashcard" class="flashcard w-full h-full">
-                    <div id="flashcard-front" class="flashcard-front w-full h-full flex items-center justify-center p-6 bg-gray-700 border border-gray-600 rounded-lg">
-                        <p class="text-xl text-center"></p>
-                    </div>
-                    <div id="flashcard-back" class="flashcard-back w-full h-full flex items-center justify-center p-6 bg-gray-700 border border-gray-600 rounded-lg">
-                        <p class="text-xl text-center"></p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex justify-center gap-4 mt-6">
-                <button id="prev-card" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg transition-colors">Previous</button>
-                <button id="flip-card" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded-lg transition-colors">Flip</button>
-                <button id="next-card" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg transition-colors">Next</button>
-            </div>
-
-            <div class="mt-4 text-center">
-                <button id="generate-more-flashcards" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors">Generate More Flashcards</button>
-            </div>
-            <div id="card-counter" class="text-center mt-4 text-gray-400"></div>
-        </div>
-
-        <script>
-            let currentContentId = null;
-            let currentQuizId = null;
-            let currentQuizQuestions = [];
-            let currentFlashcards = [];
-            let currentFlashcardIndex = 0;
-            let currentNotesRaw = ''; // Add this at the top with other variables
-
-            const urlsInput = document.getElementById('urls-input');
-            const filesInput = document.getElementById('files-input');
-            const fileInputLabel = document.getElementById('file-input-label');
-            const selectedFilesDiv = document.getElementById('selected-files');
-            const processContentBtn = document.getElementById('process-content');
-            const contentContainer = document.getElementById('content-container');
-            const contentInfo = document.getElementById('content-info');
-            const notesContainer = document.getElementById('notes-container');
-            const notesContent = document.getElementById('notes-content');
-            const quizContainer = document.getElementById('quiz-container');
-            const quizContent = document.getElementById('quiz-content');
-            const flashcardsContainer = document.getElementById('flashcards-container');
-            const flashcard = document.getElementById('flashcard');
-            const flashcardFront = document.getElementById('flashcard-front').querySelector('p');
-            const flashcardBack = document.getElementById('flashcard-back').querySelector('p');
-            const cardCounter = document.getElementById('card-counter');
-            const dragDropArea = document.getElementById('drag-drop-area');
-
-            // File management
-            let selectedFiles = new Map();
-
-            // Drag and Drop functionality
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dragDropArea.addEventListener(eventName, preventDefaults, false);
-            });
-
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dragDropArea.addEventListener(eventName, highlight, false);
-            });
-
-            ['dragleave', 'drop'].forEach(eventName => {
-                dragDropArea.addEventListener(eventName, unhighlight, false);
-            });
-
-            function highlight() {
-                dragDropArea.classList.add('drag-active');
-            }
-
-            function unhighlight() {
-                dragDropArea.classList.remove('drag-active');
-            }
-
-            dragDropArea.addEventListener('drop', handleDrop, false);
-
-            function handleDrop(e) {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-
-                if (!files.length) return;
-
-                handleFiles(files);
-            }
-
-            function handleFiles(files) {
-                Array.from(files).forEach(file => {
-                    // Check if file is of accepted type
-                    const acceptedTypes = ['.pdf', '.mp3', '.wav', '.mp4', '.avi', '.mov'];
-                    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-
-                    if (acceptedTypes.includes(fileExtension)) {
-                        const fileId = `${file.name}-${file.size}-${file.lastModified}`;
-                        selectedFiles.set(fileId, file);
-                    } else {
-                        alert(`File type ${fileExtension} is not supported. Please upload PDF, audio, or video files.`);
-                    }
-                });
-
-                updateFileListDisplay();
-                updateProcessButtonState();
-                updateFileInputLabel();
-            }
-
-            // Event Listeners
-            processContentBtn.addEventListener('click', processContent);
-            document.getElementById('show-notes').addEventListener('click', showNotes);
-            document.getElementById('generate-quiz').addEventListener('click', generateQuiz);
-            document.getElementById('generate-flashcards').addEventListener('click', generateFlashcards);
-            document.getElementById('send-message').addEventListener('click', sendChatMessage);
-            document.getElementById('submit-quiz').addEventListener('click', submitQuiz);
-            document.getElementById('generate-more-questions').addEventListener('click', generateQuiz);
-            document.getElementById('prev-card').addEventListener('click', showPreviousFlashcard);
-            document.getElementById('next-card').addEventListener('click', showNextFlashcard);
-            document.getElementById('flip-card').addEventListener('click', flipFlashcard);
-            document.getElementById('close-notes').addEventListener('click', () => notesContainer.classList.add('hidden'));
-            document.getElementById('close-quiz').addEventListener('click', () => quizContainer.classList.add('hidden'));
-            document.getElementById('close-flashcards').addEventListener('click', () => flashcardsContainer.classList.add('hidden'));
-            document.getElementById('generate-more-flashcards').addEventListener('click', generateMoreFlashcards);
-            //document.getElementById('note-style').addEventListener('change', updateNoteStyle); // Removed
-            document.getElementById('download-notes').addEventListener('click', downloadNotes);
-
-
-            // File input change handler
-            filesInput.addEventListener('change', function() {
-                if (!this.files.length) return;
-
-                handleFiles(this.files);
-
-                // Reset the file input to allow selecting the same files again
-                this.value = '';
-            });
-
-            // Update file input label
-            function updateFileInputLabel() {
-                if (selectedFiles.size === 0) {
-                    fileInputLabel.textContent = 'Browse Files';
-                } else {
-                    fileInputLabel.textContent = `${selectedFiles.size} file(s) selected`;
-                }
-            }
-
-            // Update file list display
-            function updateFileListDisplay() {
-                selectedFilesDiv.innerHTML = '';
-
-                if (selectedFiles.size === 0) {
-                    return;
-                }
-
-                selectedFiles.forEach((file, fileId) => {
-                    const fileElement = document.createElement('div');
-                    fileElement.className = 'flex items-center justify-between p-2 bg-gray-700 rounded-lg';
-                    fileElement.innerHTML = `
-                        <span class="text-gray-300 truncate flex-grow">${file.name}</span>
-                        <button class="text-red-400 hover:text-red-300 ml-2 px-2" data-file-id="${fileId}">×</button>
-                    `;
-                    fileElement.querySelector('button').addEventListener('click', function() {
-                        selectedFiles.delete(fileId);
-                        updateFileListDisplay();
-                        updateProcessButtonState();
-                        updateFileInputLabel();
-                    });
-                    selectedFilesDiv.appendChild(fileElement);
-                });
-            }
-
-            function updateProcessButtonState() {
-                const urls = urlsInput.value.trim();
-                const files = selectedFiles.size;
-                processContentBtn.disabled = !(urls || files);
-
-                if (processContentBtn.disabled) {
-                    processContentBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                } else {
-                    processContentBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
-            }
-
-            urlsInput.addEventListener('input', updateProcessButtonState);
-            updateProcessButtonState();  // Initial state
-
-            function showProgressBar() {
-                document.getElementById('progress-bar').classList.remove('hidden');
-            }
-            function hideProgressBar() {
-                document.getElementById('progress-bar').classList.add('hidden');
-            }
-
-            async function processContent(e) {
-                e.preventDefault();
-                const urls = urlsInput.value.trim().split('\n').filter(url => url.trim() !== '');
-                const files = Array.from(selectedFiles.values());
-
-                if (urls.length === 0 && files.length === 0) {
-                    alert('Please provide at least one URL or file');
-                    return;
-                }
-
-                const webSearchEnabled = document.getElementById('web-search-toggle').checked;
-                const formData = new FormData();
-                formData.append('urls', JSON.stringify(urls));
-                formData.append('web_search', webSearchEnabled);
-
-                files.forEach(file => {
-                    formData.append('files', file);
-                });
-
-                showProgressBar();
-                try {
-                    const response = await fetch('/api/process-content', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    currentContentId = data.content_id;
-                    displayContentInfo(data);
-                } catch (error) {
-                    alert(`Error processing content: ${error.message}`);
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            async function displayContentInfo(data) {
-                // Fetch the original content to calculate length
-                let originalText = "";
-                try {
-                    const response = await fetch(`/api/content/${data.content_id}`);
-                    const contentData = await response.json();
-                    originalText = contentData.original_text || "";
-                } catch (error) {
-                    console.error("Error fetching original text:", error);
-                }
-                
-                // Calculate character and word counts
-                const charCount = originalText.length;
-                const wordCount = originalText.split(/\s+/).filter(word => word.length > 0).length;
-                
-                contentInfo.innerHTML = `
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <span class="font-semibold">Title:</span>
-                            <span class="ml-2">${data.title}</span>
-                        </div>
-                        <div>
-                            <span class="font-semibold">Content Length:</span>
-                            <span class="ml-2">${charCount.toLocaleString()} characters / ${wordCount.toLocaleString()} words</span>
-                        </div>
-                    </div>
-                    <button id="show-original" class="mt-4 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg">Show Original Content</button>
-                    <div id="original-container" class="hidden mt-4 p-4 bg-gray-700 rounded-lg">
-                        <h3 class="text-lg font-medium mb-2">Original Content</h3>
-                        <p id="original-text" class="text-gray-300"></p>
-                    </div>
-                `;
-                contentContainer.classList.remove('hidden');
-                resetContainers();
-                document.getElementById('show-original').addEventListener('click', () => {
-                    const originalContainer = document.getElementById('original-container');
-                    if (originalContainer.classList.contains('hidden')) {
-                        if (!originalContainer.dataset.loaded) {
-                            document.getElementById('original-text').textContent = originalText;
-                            originalContainer.dataset.loaded = true;
-                        }
-                        originalContainer.classList.remove('hidden');
-                        document.getElementById('show-original').textContent = 'Hide Original Content';
-                    } else {
-                        originalContainer.classList.add('hidden');
-                        document.getElementById('show-original').textContent = 'Show Original Content';
-                    }
-                });
-            }
-
-            function resetContainers() {
-                notesContainer.classList.add('hidden');
-                quizContainer.classList.add('hidden');
-                flashcardsContainer.classList.add('hidden');
-                document.getElementById('chat-history').innerHTML = '';
-            }
-
-            async function showNotes() {
-                if (!currentContentId) return;
-                showProgressBar();
-                try {
-                    const response = await fetch(`/api/content/${currentContentId}`);
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-
-                    currentNotesRaw = data.notes;
-                    let processedNotes = processMarkdownAndLatex(currentNotesRaw);
-                    notesContent.innerHTML = processedNotes;
-                    notesContent.classList.add('prose', 'academic-technical-style', 'max-w-none');
-
-                    // Trigger MathJax rendering after content insertion
-                    if (window.MathJax) {
-                        MathJax.Hub.Queue(["Typeset", MathJax.Hub, notesContent]);
-                    }
-
-                    notesContainer.classList.remove('hidden');
-                } catch (error) {
-                    alert(`Error fetching notes: ${error.message}`);
-                    console.error("Error in showNotes:", error);
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            function downloadNotes() {
-                if (!currentContentId) return;
-
-                const format = document.getElementById('download-format').value;
-                let content, mimeType, fileName;
-
-                switch (format) {
-                    case 'txt':
-                        content = notesContent.innerText;
-                        mimeType = 'text/plain';
-                        fileName = `notes_${currentContentId}.txt`;
-                        break;
-                    case 'md':
-                        // Preserve Gemini-supported formatting
-                        content = currentNotesRaw
-                            .replace(/\\\[/g, '$$')  // Convert LaTeX blocks
-                            .replace(/\\\(/g, '$')   // Convert LaTeX inline
-                            .replace(/<div class="math-block">/g, '$$\n')
-                            .replace(/<\/div>/g, '\n$$');
-                        mimeType = 'text/markdown';
-                        fileName = `notes_${currentContentId}.md`;
-                        break;
-                    case 'html':
-                        content = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Study Notes</title>
-                <style>${Array.from(document.querySelectorAll('style')).map(s => s.innerHTML).join('\n')}</style>
-            </head>
-            <body class="bg-gray-900">
-                ${notesContent.outerHTML}
-            </body>
-            </html>`;
-                        mimeType = 'text/html';
-                        fileName = `notes_${currentContentId}.html`;
-                        break;
-                        case 'pdf':
-                    const pdfContainer = document.createElement('div');
-                    pdfContainer.innerHTML = notesContent.innerHTML;
-                    pdfContainer.classList.add('prose', 'academic-technical-style', 'bg-gray-900', 'text-gray-100', 'p-8');
-                    pdfContainer.style.position = 'fixed';
-                    pdfContainer.style.top = '0';
-                    pdfContainer.style.left = '0';
-                    pdfContainer.style.width = '800px';
-                    pdfContainer.style.visibility = 'hidden';
-                    document.body.appendChild(pdfContainer);
-
-                    const style = document.createElement('style');
-                    style.textContent = `
-                        body { background-color: #121212; color: #e0e0e0; font-family: 'Cambria', 'Times New Roman', serif; }
-                        .math-block { background-color: rgba(45, 55, 72, 0.3); padding: 10px; margin: 10px 0; border-radius: 4px; }
-                        pre { background-color: #1a202c !important; padding: 15px; border-radius: 5px; }
-                        code { font-family: 'Fira Code', 'Consolas', monospace; }
-                        .definition { background-color: rgba(66, 153, 225, 0.1) !important; padding: 10px; border-left: 4px solid #4299e1; margin: 15px 0; }
-                        h1, h2, h3 { color: #e2e8f0; }
-                        p { margin: 10px 0; }
-                        sup { vertical-align: super; font-size: smaller; }
-                        sub { vertical-align: sub; font-size: smaller; }
-                    `;
-                    pdfContainer.prepend(style);
-
-                    if (window.MathJax) {
-                        MathJax.typesetPromise([pdfContainer]).then(() => {
-                            document.fonts.ready.then(() => {
-                                html2canvas(pdfContainer, {
-                                    scale: 3,
-                                    backgroundColor: '#121212',
-                                    logging: false,
-                                    useCORS: true
-                                }).then(canvas => {
-                                    document.body.removeChild(pdfContainer);
-                                    const imgData = canvas.toDataURL('image/png');
-                                    const pdf = new jspdf.jsPDF({
-                                        orientation: 'portrait',
-                                        unit: 'mm',
-                                        format: 'a4'
-                                    });
-                                    const pageWidth = pdf.internal.pageSize.getWidth();
-                                    const imgWidth = pageWidth - 20;
-                                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                                    let heightLeft = imgHeight;
-                                    let position = 10;
-                                    let pageHeight = pdf.internal.pageSize.getHeight();
-                                    pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-                                    heightLeft -= (pageHeight - 20);
-                                    while (heightLeft > 0) {
-                                        position = 10;
-                                        pdf.addPage();
-                                        pdf.addImage(imgData, 'PNG', 10, position - (pageHeight - 20), imgWidth, imgHeight);
-                                        heightLeft -= (pageHeight - 20);
-                                    }
-                                    pdf.save(`notes_${currentContentId}.pdf`);
-                                });
-                            });
-                        });
-                    } else {
-                        document.fonts.ready.then(() => {
-                            html2canvas(pdfContainer, {
-                                scale: 3,
-                                backgroundColor: '#121212'
-                            }).then(canvas => {
-                                document.body.removeChild(pdfContainer);
-                                const imgData = canvas.toDataURL('image/png');
-                                const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-                                const imgWidth = pdf.internal.pageSize.getWidth() - 20;
-                                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                                pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-                                pdf.save(`notes_${currentContentId}.pdf`);
-                            });
-                        });
-                    }
-                    return;
-                    default:
-                        return;
-                }
-
-                const blob = new Blob([content], { type: mimeType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-
-            async function generateQuiz() {
-                if (!currentContentId) return;
-                showProgressBar();
-                try {
-                    const response = await fetch(`/api/generate-quizzes/${currentContentId}`);
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    currentQuizId = data.quiz_id;
-                    currentQuizQuestions = data.questions;
-                    displayQuiz(data);
-                } catch (error) {
-                    alert(`Error generating quiz: ${error.message}`);
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            function displayQuiz(data) {
-                const quizContent = document.getElementById('quiz-content');
-                quizContent.innerHTML = ''; // Clear existing content
-                data.questions.forEach((q, index) => {
-                    const correctIndex = q.options.findIndex(opt => opt === q.correct_answer);
-                    if (correctIndex === -1) {
-                        console.error(`Correct answer "${q.correct_answer}" not found in options for question ${index}:`, q.options);
-                    }
-                    const processedQuestion = processMarkdownAndLatex(q.question);
-                    const optionsHtml = q.options.map((option, optIndex) => {
-                        const isCorrect = optIndex === correctIndex;
-                        const processedOption = processMarkdownAndLatex(option);
-                        const safeValue = option.replace(/"/g, '&quot;'); // Properly escape quotes
-                        return `
-                            <div class="option-container p-3 rounded-lg border border-gray-600 hover:bg-gray-600">
-                                <input type="radio" id="q${index}_opt${optIndex}" name="q${index}" value="${safeValue}" data-correct="${isCorrect}" class="mr-2">
-                                <label for="q${index}_opt${optIndex}">${processedOption}</label>
-                            </div>
-                        `;
-                    }).join('');
-                    
-                    const questionHtml = `
-                        <div class="quiz-question bg-gray-700 p-6 rounded-lg" data-index="${index}">
-                            <p class="text-lg font-medium mb-4">${index + 1}. ${processedQuestion}</p>
-                            <div class="space-y-3">
-                                ${optionsHtml}
-                            </div>
-                            <div class="feedback-container mt-4 hidden"></div>
-                        </div>
-                    `;
-                    quizContent.innerHTML += questionHtml;
-                });
-                quizContainer.classList.remove('hidden');
-                document.getElementById('submit-quiz').disabled = true; // Disable initially
-                quizContent.addEventListener('change', function() {
-                    const allAnswered = currentQuizQuestions.every((q, index) => {
-                        return document.querySelector(`input[name="q${index}"]:checked`) !== null;
-                    });
-                    document.getElementById('submit-quiz').disabled = !allAnswered;
-                });
-                if (window.MathJax) {
-                    MathJax.Hub.Queue(["Typeset", MathJax.Hub, quizContent]);
-                }
-            }
-
-            async function submitQuiz() {
-                if (!currentContentId || !currentQuizId || !currentQuizQuestions.length) return;
-                let correctAnswers = 0;
-                const totalQuestions = currentQuizQuestions.length;
-
-                currentQuizQuestions.forEach((q, index) => {
-                    try {
-                        const questionDiv = document.querySelector(`.quiz-question[data-index="${index}"]`);
-                        if (!questionDiv) {
-                            throw new Error(`Question div not found for index ${index}`);
-                        }
-                        const feedbackDiv = questionDiv.querySelector('.feedback-container');
-                        if (!feedbackDiv) {
-                            throw new Error(`Feedback div not found for question ${index}`);
-                        }
-                        const selectedOption = document.querySelector(`input[name="q${index}"]:checked`);
-                        if (!selectedOption) {
-                            feedbackDiv.innerHTML = `<p class="text-yellow-500">Please answer this question.</p>`;
-                            feedbackDiv.classList.remove('hidden');
-                            return;
-                        }
-                        const isCorrect = selectedOption.dataset.correct === "true";
-                        if (isCorrect) correctAnswers++;
-                        const processedExplanation = processMarkdownAndLatex(q.explanation || '');
-                        const processedMisconceptions = processMarkdownAndLatex(q.misconceptions || '');
-                        const processedRelatedConcepts = processMarkdownAndLatex(q.related_concepts || '');
-                        const processedCorrectAnswer = processMarkdownAndLatex(q.correct_answer || '');
-                        const userChosenLabel = selectedOption.nextElementSibling.innerHTML;
-                        feedbackDiv.innerHTML = `
-                            <div class="${isCorrect ? 'text-green-500' : 'text-red-500'} mb-2">
-                                <p class="font-semibold">${isCorrect ? '✓ Correct!' : '✗ Incorrect'}</p>
-                                <p class="text-gray-300">Your answer: ${userChosenLabel}</p>
-                                ${!isCorrect && q.correct_answer ? `<p>The correct answer is: ${processedCorrectAnswer}</p>` : ''}
-                            </div>
-                            <div class="mt-2">
-                                <p class="text-gray-300"><strong>Explanation:</strong> ${processedExplanation}</p>
-                                <p class="text-gray-400 mt-2"><strong>Misconceptions:</strong> ${processedMisconceptions}</p>
-                                <p class="text-gray-400 mt-2"><strong>Related concepts:</strong> ${processedRelatedConcepts}</p>
-                            </div>
-                        `;
-                        feedbackDiv.classList.remove('hidden');
-                        questionDiv.querySelectorAll('input[type="radio"]').forEach(input => input.disabled = true);
-                        if (window.MathJax) {
-                            MathJax.Hub.Queue(["Typeset", MathJax.Hub, feedbackDiv]);
-                        }
-                    } catch (error) {
-                        console.error(`Error processing question ${index}:`, error);
-                        const questionDiv = document.querySelector(`.quiz-question[data-index="${index}"]`);
-                        if (questionDiv) {
-                            const feedbackDiv = questionDiv.querySelector('.feedback-container');
-                            if (feedbackDiv) {
-                                feedbackDiv.innerHTML = `<p class="text-red-500">Error processing this question: ${error.message}</p>`;
-                                feedbackDiv.classList.remove('hidden');
-                            }
-                        }
-                    }
-                });
-
-                showProgressBar();
-                try {
-                    const response = await fetch('/api/record-performance', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            content_id: currentContentId,
-                            quiz_id: currentQuizId,
-                            bloom_level: currentQuizQuestions[0]?.bloom_level || 'Understand',
-                            correct_answers: correctAnswers,
-                            total_questions: totalQuestions
-                        })
-                    });
-                    if (!response.ok) throw new Error('Failed to record performance');
-                    quizContent.insertAdjacentHTML('beforeend', `
-                        <div class="mt-6 p-4 bg-blue-900 border border-blue-700 rounded-lg">
-                            <p class="text-xl font-semibold">Quiz Results</p>
-                            <p class="text-lg">Score: ${correctAnswers}/${totalQuestions} (${Math.round((correctAnswers/totalQuestions)*100)}%)</p>
-                        </div>
-                    `);
-                    document.getElementById('submit-quiz').disabled = true;
-                    document.getElementById('submit-quiz').classList.add('bg-gray-500');
-                    document.getElementById('submit-quiz').classList.remove('bg-blue-600');
-                } catch (error) {
-                    alert(`Error recording performance: ${error.message}`);
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            async function generateFlashcards() {
-                if (!currentContentId) return;
-                showProgressBar();
-                try {
-                    const response = await fetch(`/api/generate-flashcards/${currentContentId}`);
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    currentFlashcards = data.flashcards;
-                    currentFlashcardIndex = 0;
-                    if (currentFlashcards.length > 0) {
-                        showFlashcard(0);
-                        flashcardsContainer.classList.remove('hidden');
-                    }
-                } catch (error) {
-                    alert(`Error generating flashcards: ${error.message}`);
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            async function generateMoreFlashcards() {
-                if (!currentContentId) return;
-                showProgressBar();
-                try {
-                    const response = await fetch(`/api/generate-flashcards/${currentContentId}`);
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    const newFlashcards = data.flashcards;
-                    currentFlashcards = currentFlashcards.concat(newFlashcards);
-                    showFlashcard(currentFlashcardIndex);
-                    flashcardsContainer.classList.remove('hidden');
-                } catch (error) {
-                    alert(`Error generating more flashcards: ${error.message}`);
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            function showFlashcard(index) {
-                if (index < 0 || index >= currentFlashcards.length) return;
-                const card = currentFlashcards[index];
-                const processedQuestion = processMarkdownAndLatex(card.question);
-                const processedAnswer = processMarkdownAndLatex(card.answer);
-                flashcardFront.innerHTML = processedQuestion;
-                flashcardBack.innerHTML = processedAnswer;
-                flashcard.classList.remove('flipped');
-                cardCounter.textContent = `Card ${index + 1} of ${currentFlashcards.length}`;
-                updateFlashcardNavigation();                
-                if (window.MathJax) {
-                    MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
-                }
-            }
-
-            function updateFlashcardNavigation() {
-                document.getElementById('prev-card').disabled = currentFlashcardIndex === 0;
-                document.getElementById('next-card').disabled = currentFlashcardIndex === currentFlashcards.length - 1;
-            }
-
-            function showPreviousFlashcard() {
-                if (currentFlashcardIndex > 0) {
-                    currentFlashcardIndex--;
-                    showFlashcard(currentFlashcardIndex);
-                }
-            }
-
-            function showNextFlashcard() {
-                if (currentFlashcardIndex < currentFlashcards.length - 1) {
-                    currentFlashcardIndex++;
-                    showFlashcard(currentFlashcardIndex);
-                }
-            }
-
-            function flipFlashcard() {
-                flashcard.classList.toggle('flipped');
-            }
-
-            function processMarkdownAndLatex(text) {
-                if (!text) return '';
-                // Protect display math ($$...$$) with div tags
-                text = text.replace(/\$\$([\s\S]*?)\$\$/g, '<div class="math-block">$$ $1 $$</div>');
-                // Protect inline math ($...$) with span tags
-                text = text.replace(/\$((?!\$)[\s\S]*?)\$/g, '<span class="math-inline">$ $1 $</span>');
-                // Parse Markdown while preserving LaTeX
-                let processedText = marked.parse(text);
-                // Replace special characters like "ð" with HTML entities
-                processedText = processedText.replace(/ð/g, '&eth;');
-                return processedText;
-            }
-
-            async function sendChatMessage() {
-                if (!currentContentId) return;
-                const chatInput = document.getElementById('chat-input');
-                const message = chatInput.value.trim();
-                if (!message) return;
-                const chatHistory = document.getElementById('chat-history');
-                chatHistory.innerHTML += `
-                    <div class="mb-4">
-                        <p class="font-semibold text-blue-400">You:</p>
-                        <p class="ml-4">${message}</p>
-                    </div>
-                `;
-                chatInput.value = '';
-                showProgressBar();
-                try {
-                    const response = await fetch(`/api/chat/${currentContentId}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message })
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    chatHistory.innerHTML += `
-                        <div class="mb-4">
-                            <p class="font-semibold text-green-400">Assistant:</p>
-                            <div class="ml-4">${marked.parse(data.response)}</div>
-                        </div>
-                    `;
-                    chatHistory.scrollTop = chatHistory.scrollHeight;
-                } catch (error) {
-                    chatHistory.innerHTML += `<div class="mb-4 text-red-400">Error: ${error.message}</div>`;
-                } finally {
-                    hideProgressBar();
-                }
-            }
-
-            document.getElementById('chat-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    sendChatMessage();
-                }
-            });
-        </script>
+        <!-- Navigation Links -->
+        <nav class="flex-grow p-4 space-y-1 overflow-y-auto">
+            <button data-view="input-view" class="sidebar-link w-full text-left px-4 py-3 rounded-lg hover:bg-gray-700 flex items-center active-link">
+                <span class="material-icons-round mr-3">upload_file</span>
+                <span>Input Content</span>
+            </button>
+            <button data-view="notes-view" class="sidebar-link w-full text-left px-4 py-3 rounded-lg hover:bg-gray-700 flex items-center disabled-link" disabled>
+                <span class="material-icons-round mr-3">description</span>
+                <span>Notes</span>
+            </button>
+            <button data-view="mindmap-view" class="sidebar-link w-full text-left px-4 py-3 rounded-lg hover:bg-gray-700 flex items-center disabled-link" disabled>
+                <span class="material-icons-round mr-3">account_tree</span>
+                <span>Mind Map</span>
+            </button>
+            <button data-view="quiz-view" class="sidebar-link w-full text-left px-4 py-3 rounded-lg hover:bg-gray-700 flex items-center disabled-link" disabled>
+                <span class="material-icons-round mr-3">quiz</span>
+                <span>Quiz</span>
+            </button>
+            <button data-view="flashcards-view" class="sidebar-link w-full text-left px-4 py-3 rounded-lg hover:bg-gray-700 flex items-center disabled-link" disabled>
+                <span class="material-icons-round mr-3">style</span>
+                <span>Flashcards</span>
+            </button>
+            <button data-view="chat-view" class="sidebar-link w-full text-left px-4 py-3 rounded-lg hover:bg-gray-700 flex items-center disabled-link" disabled>
+                <span class="material-icons-round mr-3">chat</span>
+                <span>Chat</span>
+            </button>
+        </nav>
     </div>
+
+    <!-- Main Content Area -->
+    <div id="main-content" class="flex-1 transition-all duration-300 ease-in-out overflow-y-auto" style="margin-left: 280px;">
+        <!-- ADDED Top Header Bar -->
+        <div class="bg-gray-800 py-3 shadow-md sticky top-0 z-30"> <!-- Added sticky and z-index -->
+            <h1 class="text-xl font-semibold text-white text-center">Study Assistant</h1>
+        </div>
+
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8"> <!-- Original container -->
+
+            <!-- Global Loading Indicator -->
+            <div id="loading-indicator" class="fixed inset-0 pointer-events-none z-60 hidden"> <!-- Outer container, no background/flex -->
+                 <!-- Top Progress Bar -->
+                 <div id="loading-progress-bar-container" style="display: none;" class="fixed top-0 left-0 w-full h-1 overflow-hidden bg-blue-900/30 z-61"> <!-- Added bg for track -->
+                     <div id="loading-progress-bar" class="h-full bg-blue-500 indeterminate-progress"></div>
+                 </div>
+                 <!-- Bottom Right Text -->
+                 <div id="loading-text-corner" style="display: none;" class="fixed bottom-4 right-4 px-3 py-1 bg-gray-800 bg-opacity-90 text-white text-sm rounded shadow-lg z-61">
+                     Processing...
+                 </div>
+            </div>
+
+            <!-- Dynamic View Container -->
+            <div id="view-container">
+                <!-- 1. Input Content View -->
+                <div id="input-view" class="view active-view">
+                    <div class="flex items-center mb-6">
+                        <span class="material-icons-round text-blue-400 mr-3 text-3xl">input</span>
+                        <h1 class="text-3xl font-bold text-gray-100">Input Your Material</h1>
+                    </div>
+                    <div class="card">
+                        <!-- Combined Input Section -->
+                        <div class="mb-8 border-b border-gray-700 pb-8">
+                            <div class="flex items-center mb-4">
+                                <span class="material-icons-round text-blue-400 mr-2">source</span>
+                                <h2 class="text-xl font-semibold text-gray-100">Provide Content & Context</h2>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-6">
+                                You can provide content in multiple ways. Add URLs or upload files for direct content extraction. You can also (or additionally) provide a topic and description to guide the AI. Combining sources and descriptions often yields the best results.
+                            </p>
+
+                            <!-- URLs -->
+                            <div class="mb-6">
+                                <label for="urls-input" class="input-label">Website/YouTube URLs (Optional, one per line)</label>
+                                <textarea id="urls-input" placeholder="Enter YouTube or website URLs here..." rows="3" class="input-field"></textarea>
+                            </div>
+
+                            <!-- File Upload -->
+                            <div class="mb-6">
+                                <label class="input-label">Upload Files (Optional, PDF, Audio, Video, Images, Text)</label>
+                                <div id="drag-drop-area" class="drag-drop-zone">
+                                    <span class="material-icons-round text-gray-400 text-4xl mb-2">cloud_upload</span>
+                                    <p class="text-center text-sm">Drag & drop files here or</p>
+                                    <label for="files-input" class="btn-secondary mt-2">
+                                        <span id="file-input-label">Browse Files</span>
+                                        <input type="file" id="files-input" multiple accept=".pdf,.mp3,.wav,.ogg,.flac,.mp4,.avi,.mov,.mpeg,.jpg,.jpeg,.png,.webp,.txt,.md,.doc,.docx,.ppt,.pptx" class="hidden">
+                                    </label>
+                                </div>
+                                <div id="selected-files" class="mt-3 space-y-2 text-sm"></div>
+                            </div>
+
+                            <!-- Topic -->
+                            <div class="mb-6">
+                                <label for="topic-input" class="input-label">Main Topic (Optional)</label>
+                                <input type="text" id="topic-input" placeholder="e.g., Quantum Physics Basics, History of Ancient Rome" class="input-field">
+                            </div>
+
+                            <!-- Description -->
+                            <div>
+                                <label for="description-input" class="input-label">Specific Focus or Instructions (Optional)</label>
+                                <textarea id="description-input" placeholder="e.g., Focus on the Schrödinger equation, explain the fall of the Republic, summarize key arguments..." rows="3" class="input-field"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Processing Options -->
+                        <div>
+                            <div class="flex items-center mb-4">
+                                <span class="material-icons-round text-blue-400 mr-2">settings</span>
+                                <h2 class="text-xl font-semibold text-gray-100">Options</h2>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="web-search-toggle" checked class="form-checkbox h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-blue-400 focus:ring-opacity-50">
+                                    <label for="web-search-toggle" class="ml-2 text-gray-300">Enable Web Search (Enhance context)</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="generate-quiz-toggle" checked class="form-checkbox h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-blue-400 focus:ring-opacity-50">
+                                    <label for="generate-quiz-toggle" class="ml-2 text-gray-300">Generate Quiz Immediately</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="generate-flashcards-toggle" checked class="form-checkbox h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-blue-400 focus:ring-opacity-50">
+                                    <label for="generate-flashcards-toggle" class="ml-2 text-gray-300">Generate Flashcards Immediately</label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="generate-mindmap-toggle" checked class="form-checkbox h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 rounded focus:ring-blue-400 focus:ring-opacity-50">
+                                    <label for="generate-mindmap-toggle" class="ml-2 text-gray-300">Generate Mind Map Immediately</label>
+                                </div>
+                            </div>
+                            <button id="process-content-btn" class="btn-primary" disabled>
+                                <span class="material-icons-round mr-2">auto_awesome</span>
+                                Process Content & Generate Notes
+                            </button>
+                        </div>
+                        <!-- Processing Warnings/Errors (Remains the same) -->
+                        <div id="processing-warnings" class="mt-6 p-4 rounded-lg bg-yellow-900 border border-yellow-700 text-yellow-200 hidden">
+                            <div class="flex items-start">
+                                <span class="material-icons-round mr-2 mt-0.5">warning</span>
+                                <div></div> <!-- Content injected here -->
+                            </div>
+                        </div>
+                        <div id="processing-errors" class="mt-6 p-4 rounded-lg bg-red-900 border border-red-700 text-red-200 hidden">
+                            <div class="flex items-start">
+                                <span class="material-icons-round mr-2 mt-0.5">error</span>
+                                <div></div> <!-- Content injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Notes View -->
+                <div id="notes-view" class="view hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center">
+                            <span class="material-icons-round text-blue-400 mr-3 text-3xl">description</span>
+                            <h1 id="notes-title" class="text-3xl font-bold text-gray-100">Study Notes</h1>
+                        </div>
+                        <div class="flex">
+                            <select id="download-format" class="select-field mr-2">
+                                <option value="md">Markdown (.md)</option>
+                                <option value="txt">Plain Text (.txt)</option>
+                                <option value="html">HTML (.html)</option>
+                                <option value="pdf">PDF (.pdf)</option>
+                            </select>
+                            <button id="download-notes-btn" class="btn-secondary">
+                                <span class="material-icons-round mr-1">download</span>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                    <div id="notes-content" class="card prose prose-invert max-w-none academic-technical-style">
+                        <p class="text-gray-500 italic">Notes will appear here once generated.</p>
+                    </div>
+                    <!-- Original Content Toggle -->
+                    <div class="mt-6 card">
+                        <button id="toggle-original-content" class="btn-text flex items-center">
+                            <span class="material-icons-round mr-1 text-blue-400">visibility</span>
+                            Show Original Content
+                        </button>
+                        <div id="original-content-container" class="hidden mt-4 max-h-96 overflow-y-auto text-sm text-gray-400 border-t border-gray-700 pt-4">
+                            <pre class="whitespace-pre-wrap break-words"></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Quiz View -->
+                <div id="quiz-view" class="view hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center">
+                            <span class="material-icons-round text-blue-400 mr-3 text-3xl">quiz</span>
+                            <h1 class="text-3xl font-bold text-gray-100">Knowledge Quiz</h1>
+                        </div>
+                        <button id="generate-more-questions-btn" class="btn-secondary">
+                            <span class="material-icons-round mr-1">add</span>
+                            Generate More Questions
+                        </button>
+                    </div>
+                    <!-- Quiz Generation Options -->
+                    <div id="quiz-options" class="card mb-6 hidden">
+                        <label class="input-label">Select question types for next batch:</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm mb-4">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="quiz_type" value="MCQ" checked class="form-checkbox h-4 w-4 text-blue-500 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Multiple Choice</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="quiz_type" value="True/False" class="form-checkbox h-4 w-4 text-blue-500 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">True/False</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="quiz_type" value="Fill_in_the_Blank" class="form-checkbox h-4 w-4 text-blue-500 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Fill in the Blank</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="quiz_type" value="Matching" class="form-checkbox h-4 w-4 text-blue-500 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Matching</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="quiz_type" value="Short_Answer" class="form-checkbox h-4 w-4 text-blue-500 bg-gray-700 border-gray-600 rounded">
+                                <span class="ml-2">Short Answer</span>
+                            </label>
+                        </div>
+                        <div class="mb-4">
+                            <label for="quiz-difficulty-select" class="input-label">Question Difficulty (Bloom's Taxonomy):</label>
+                            <select id="quiz-difficulty-select" class="select-field w-full md:w-auto">
+                                <option value="Remember">Remember (Recall facts)</option>
+                                <option value="Understand">Understand (Explain concepts)</option>
+                                <option value="Apply" selected>Apply (Use info in new situations)</option>
+                                <option value="Analyze">Analyze (Break down info)</option>
+                                <option value="Evaluate">Evaluate (Judge, critique)</option>
+                                <option value="Create">Create (Produce new work)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center">
+                            <label for="num-questions-input" class="input-label mr-2">Number of Questions:</label>
+                            <input type="number" id="num-questions-input" value="5" min="1" max="15" class="input-field-small w-20">
+                            <button id="apply-quiz-options" class="btn-primary ml-4">
+                                <span class="material-icons-round mr-1">check</span>
+                                Apply
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="quiz-content" class="space-y-6">
+                        <p class="text-gray-500 italic text-center py-10">Quiz questions will appear here once generated.</p>
+                    </div>
+                    <div id="quiz-actions" class="mt-6 flex justify-between items-center hidden">
+                        <button id="submit-quiz-btn" class="btn-primary" disabled>
+                            <span class="material-icons-round mr-1">check_circle</span>
+                            Submit Answers
+                        </button>
+                        <div id="quiz-results-summary" class="text-lg font-semibold"></div>
+                    </div>
+                </div>
+
+                <!-- 4. Flashcards View -->
+                <div id="flashcards-view" class="view hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center">
+                            <span class="material-icons-round text-blue-400 mr-3 text-3xl">style</span>
+                            <h1 class="text-3xl font-bold text-gray-100">Flashcards</h1>
+                        </div>
+                        <button id="generate-more-flashcards-btn" class="btn-secondary">
+                            <span class="material-icons-round mr-1">add</span>
+                            Generate More Flashcards
+                        </button>
+                    </div>
+                    <div class="card">
+                        <div id="flashcards-display-area" class="hidden">
+                            <div class="flashcard-container relative mx-auto" style="height: 300px; max-width: 600px;">
+                                <div id="flashcard" class="flashcard w-full h-full">
+                                    <div id="flashcard-front" class="flashcard-face flashcard-front"></div>
+                                    <div id="flashcard-back" class="flashcard-face flashcard-back"></div>
+                                </div>
+                            </div>
+                            <div class="flex justify-center items-center gap-6 mt-8">
+                                <button id="prev-card-btn" class="btn-icon" disabled>
+                                    <span class="material-icons-round">arrow_back</span>
+                                </button>
+                                <button id="flip-card-btn" class="btn-primary">
+                                    <span class="material-icons-round mr-1">flip</span>
+                                    Flip Card
+                                </button>
+                                <button id="next-card-btn" class="btn-icon" disabled>
+                                    <span class="material-icons-round">arrow_forward</span>
+                                </button>
+                            </div>
+                            <div id="card-counter" class="text-center mt-4 text-gray-400 text-sm"></div>
+                        </div>
+                        <div id="no-flashcards-message" class="py-16 text-center">
+                            <span class="material-icons-round text-gray-500 text-5xl mb-4">style</span>
+                            <p class="text-gray-500 italic">Flashcards will appear here once generated.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Mind Map View -->
+                <div id="mindmap-view" class="view hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center">
+                            <span class="material-icons-round text-blue-400 mr-3 text-3xl">account_tree</span>
+                            <h1 class="text-3xl font-bold text-gray-100">Mind Map</h1>
+                        </div>
+                        <div class="flex space-x-2"> <!-- Added flex container for buttons -->
+                            <button id="mindmap-fullscreen-btn" class="btn-secondary" title="View Fullscreen">
+                                <span class="material-icons-round">fullscreen</span>
+                            </button>
+                            <button id="generate-mindmap-btn" class="btn-secondary">
+                                <span class="material-icons-round mr-1">auto_awesome</span>
+                                Generate Mind Map
+                            </button>
+                        </div>
+                    </div>
+                    <div id="mindmap-card" class="card flex flex-col relative">
+                         <!-- Exit Fullscreen Button (positioned absolutely) -->
+                        <button id="mindmap-exit-fullscreen-btn" class="btn-secondary absolute top-4 right-4 z-20 hidden" title="Exit Fullscreen">
+                            <span class="material-icons-round">fullscreen_exit</span>
+                        </button>
+                        <!-- Mindmap Container -->
+                        <div id="mindmap-container" class="flex-grow flex justify-center items-center overflow-auto p-4 min-h-[600px]"> <!-- Added min-height here instead -->
+                            <div class="text-center">
+                                <span class="material-icons-round text-gray-500 text-5xl mb-4">account_tree</span>
+                                <p id="mindmap-placeholder" class="text-gray-500 italic">Mind map will appear here once generated.</p>
+                            </div>
+                        </div>
+                        <div id="mindmap-error" class="mt-4 p-4 rounded-lg bg-red-900 border border-red-700 text-red-200 hidden">
+                            <div class="flex items-start">
+                                <span class="material-icons-round mr-2">error</span>
+                                <div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Chat View -->
+                <div id="chat-view" class="view hidden">
+                    <div class="flex items-center mb-6">
+                        <span class="material-icons-round text-blue-400 mr-3 text-3xl">chat</span>
+                        <h1 class="text-3xl font-bold text-gray-100">Chat with Your Content</h1>
+                    </div>
+                    <div class="card">
+                        <div id="chat-history" class="mb-4 h-96 overflow-y-auto border border-gray-700 rounded-lg bg-gray-800 p-4 text-sm space-y-4">
+                            <div class="text-center py-16">
+                                <span class="material-icons-round text-gray-500 text-5xl mb-4">chat</span>
+                                <p class="text-gray-500 italic">Chat history will appear here.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 border-t border-gray-700 pt-4">
+                            <textarea id="chat-input" placeholder="Ask a question about the content..." rows="2" class="chat-input"></textarea>
+                            <button id="send-message-btn" class="btn-send">
+                                <span class="material-icons-round">send</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Pass backend flags/data to JS if needed
+        // const API_KEY_SET = {{ api_key_set | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
